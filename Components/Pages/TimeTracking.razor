@@ -1,0 +1,96 @@
+﻿@page "/time-tracking"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using Zeiterfassung.Data
+@using Zeiterfassung.Components.Dialogs
+
+@inject IDbContextFactory<ZeiterfassungContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<TimeTracking> Logger
+@inject IDialogService DialogService
+
+<PageTitle>Zeiterfassung</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Meine Zeiteinträge</MudText>
+
+<MudTable T="TimeEntry" ServerData="@ServerReloadEntries" Dense="true" Hover="true" @ref="table">
+    <ToolBarContent>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateTimeEntryDialog">Neuer Eintrag</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Projekt</MudTh>
+        <MudTh>Beschreibung</MudTh>
+        <MudTh>Start</MudTh>
+        <MudTh>Ende</MudTh>
+        <MudTh>Dauer</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Projekt">@context.Project.Name</MudTd>
+        <MudTd DataLabel="Beschreibung">@context.Description</MudTd>
+        <MudTd DataLabel="Start">@context.StartTime.ToString("g")</MudTd>
+        <MudTd DataLabel="Ende">@context.EndTime.ToString("g")</MudTd>
+        <MudTd DataLabel="Dauer">@((context.EndTime - context.StartTime).ToString(@"hh\:mm"))</MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private MudTable<TimeEntry> table;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    }
+
+    private async Task<TableData<TimeEntry>> ServerReloadEntries(TableState state, CancellationToken token)
+    {
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync(token);
+            var query = context.TimeEntries
+                               .Include(te => te.Project) // Wichtig: Lade die Projektdaten mit!
+                               .Where(te => te.UserId == currentUserId);
+
+            var totalItems = await query.CountAsync(token);
+            var items = await query.OrderByDescending(te => te.StartTime)
+                                   .Skip(state.Page * state.PageSize)
+                                   .Take(state.PageSize)
+                                   .ToListAsync(token);
+            return new TableData<TimeEntry>() { TotalItems = totalItems, Items = items };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load time entries for user {UserId}", currentUserId);
+            return new TableData<TimeEntry>() { TotalItems = 0, Items = new List<TimeEntry>() };
+        }
+    }
+
+    private async Task OpenCreateTimeEntryDialog()
+    {
+        // Zuerst die Projekte des Benutzers laden, um sie dem Dialog zu übergeben
+        await using var context = await DbFactory.CreateDbContextAsync();
+        var userProjects = await context.Projects
+                                        .Where(p => p.UserId == currentUserId)
+                                        .OrderBy(p => p.Name)
+                                        .ToListAsync();
+
+        var parameters = new DialogParameters<CreateTimeEntryDialog> { { x => x.UserProjects, userProjects } };
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is TimeEntry newTimeEntry)
+        {
+            newTimeEntry.UserId = currentUserId!;
+            context.TimeEntries.Add(newTimeEntry);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("New time entry for project {ProjectId} created by user {UserId}", newTimeEntry.ProjectId, currentUserId);
+            await table.ReloadServerData();
+        }
+    }
+}

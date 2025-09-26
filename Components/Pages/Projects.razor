@@ -1,0 +1,130 @@
+﻿@page "/projects"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using Zeiterfassung.Data
+@using Zeiterfassung.Components.Dialogs
+
+@inject IDbContextFactory<ZeiterfassungContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<Projects> Logger
+@inject IDialogService DialogService
+
+<PageTitle>Meine Projekte</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Meine Projekte</MudText>
+<MudText Class="mb-4">Hier kannst du deine Projekte verwalten, auf die du später Zeiten erfassen wirst.</MudText>
+
+<MudTable T="Project"
+          ServerData="@ServerReload"
+          Dense="true"
+          Hover="true"
+          @ref="table">
+    <ToolBarContent>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateProjectDialog">Neues Projekt</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Beschreibung</MudTh>
+        <MudTh>Erstellt am</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Beschreibung">@context.Description</MudTd>
+        <MudTd DataLabel="Erstellt am">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Keine Projekte gefunden. Erstelle dein erstes Projekt!</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private MudTable<Project> table;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Projects page is initializing.");
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity is { IsAuthenticated: true })
+            {
+                currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                Logger.LogInformation("User authenticated with ID {UserId}", currentUserId);
+            }
+            else
+            {
+                Logger.LogWarning("User is not authenticated.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during component initialization for user {UserId}", currentUserId);
+        }
+    }
+
+    private async Task<TableData<Project>> ServerReload(TableState state, CancellationToken token)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                Logger.LogWarning("ServerReload called without a user ID.");
+                return new TableData<Project>() { TotalItems = 0, Items = new List<Project>() };
+            }
+
+            await using var context = await DbFactory.CreateDbContextAsync(token);
+            var query = context.Projects.Where(p => p.UserId == currentUserId);
+
+            var totalItems = await query.CountAsync(token);
+            var items = await query.OrderBy(p => p.Name)
+                                   .Skip(state.Page * state.PageSize)
+                                   .Take(state.PageSize)
+                                   .ToListAsync(token);
+
+            Logger.LogInformation("Successfully loaded {ItemCount} projects for user {UserId}", items.Count, currentUserId);
+            return new TableData<Project>() { TotalItems = totalItems, Items = items };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load projects for user {UserId}", currentUserId);
+            return new TableData<Project>() { TotalItems = 0, Items = new List<Project>() };
+        }
+    }
+
+    private async Task OpenCreateProjectDialog()
+    {
+        var dialog = DialogService.Show<CreateProjectDialog>("Neues Projekt erstellen");
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Project newProject)
+        {
+            Logger.LogInformation("Create project dialog was submitted for user {UserId}", currentUserId);
+            try
+            {
+                await using var context = await DbFactory.CreateDbContextAsync();
+                newProject.UserId = currentUserId!; // Wir wissen, dass der User angemeldet ist.
+
+                context.Projects.Add(newProject);
+                await context.SaveChangesAsync();
+
+                Logger.LogInformation("New project '{ProjectName}' saved successfully for user {UserId}", newProject.Name, currentUserId);
+
+                // Tabelle neu laden, um den neuen Eintrag anzuzeigen
+                await table.ReloadServerData();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to save new project for user {UserId}", currentUserId);
+            }
+        }
+    }
+}

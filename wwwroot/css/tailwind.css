@@ -1,0 +1,14 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+.nav-link {
+    @apply text-white hover:text-blue-300 transition duration-200; /* Tailwind-Direktiven */
+    text-decoration: none;
+}
+
+.nav-link-active {
+    @apply font-bold underline;
+}

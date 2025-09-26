@@ -1,0 +1,31 @@
+﻿@using Zeiterfassung.Components.Account.Shared
+<MudThemeProvider Theme="@_myTheme" />
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <RedirectToLogin />
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+<button>test</button>
+
+@code {
+    private MudTheme _myTheme = new MudTheme
+        {
+            PaletteLight = new PaletteLight
+            {
+                Primary = "#D84315", // Warm reddish-orange
+                Secondary = "#FFAB91", // Lighter peach tone
+                Background = "#FBE9E7", // Very light reddish-pink
+                Surface = "#FFFFFF", // White for surface components
+                AppbarBackground = "#BF360C", // Dark reddish-brown for AppBar
+                DrawerBackground = "#FFCCBC" // Muted peach tone for Drawer
+            }
+        };
+}
+
+
