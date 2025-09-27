@@ -41,6 +41,10 @@ builder.Services.AddIdentityCore<User>(options => options.SignIn.RequireConfirme
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
+
+builder.Services.AddRazorPages();
+
+
 builder.Services.AddSingleton<IEmailSender<User>, IdentityNoOpEmailSender>();
 
 
@@ -64,6 +68,8 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapRazorPages();
 
 app.MapAdditionalIdentityEndpoints();;
 

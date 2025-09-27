@@ -1,26 +1,25 @@
 ﻿@using Zeiterfassung.Data
 @using System.ComponentModel.DataAnnotations
 
-
 @namespace Zeiterfassung.Components.Dialogs
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Neues Projekt erstellen</MudText>
+        <MudText Typo="Typo.h6">@DialogTitle</MudText>
     </TitleContent>
     <DialogContent>
-        <MudForm @ref="form" @bind-IsValid="@success" Model="newProject">
-            <MudTextField @bind-Value="newProject.Name"
+        <MudForm @ref="form" @bind-IsValid="@success" Model="projectModel">
+            <MudTextField @bind-Value="projectModel.Name"
                           Label="Projektname"
                           Required="true"
                           RequiredError="Bitte geben Sie einen Namen an."
-                          For="@(() => newProject.Name)" />
+                          For="@(() => projectModel.Name)" />
 
-            <MudTextField @bind-Value="newProject.Description"
+            <MudTextField @bind-Value="projectModel.Description"
                           Label="Beschreibung (optional)"
                           Lines="3"
                           Class="mt-3"
-                          For="@(() => newProject.Description)" />
+                          For="@(() => projectModel.Description)" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -33,17 +32,29 @@
     [CascadingParameter]
     MudDialogInstance MudDialog { get; set; }
 
+    [Parameter]
+    public Project? ProjectToEdit { get; set; }
+
     private MudForm form;
     private bool success;
+    private Project projectModel = new();
+    private string DialogTitle = "Neues Projekt erstellen";
 
-    // Ein leeres Projekt-Objekt für die Formularbindung
-    private Project newProject = new();
+    protected override void OnInitialized()
+    {
+        if (ProjectToEdit is not null)
+        {
+            // Wenn ein Projekt zum Bearbeiten übergeben wurde, füllen wir das Formular
+            DialogTitle = "Projekt bearbeiten";
+            projectModel = ProjectToEdit;
+        }
+    }
 
     private void Submit()
     {
         // Validiert die Form und schließt den Dialog.
-        // Das neue Projekt-Objekt wird als Ergebnis zurückgegeben.
-        MudDialog.Close(DialogResult.Ok(newProject));
+        // Das Projekt-Objekt wird als Ergebnis zurückgegeben.
+        MudDialog.Close(DialogResult.Ok(projectModel));
     }
 
     private void Cancel() => MudDialog.Cancel();

@@ -1,9 +1,15 @@
 ﻿using Microsoft.AspNetCore.Identity;
 
+
+
 namespace Zeiterfassung.Data
 {
-    // Add profile data for application users by adding properties to the ApplicationUser class
     public class User : IdentityUser
     {
+        // Dein Flag, um Muster-User zu identifizieren
+        public bool IsSampleUser { get; set; } = false;
+
+        // Navigationseigenschaft zur Verknüpfungstabelle
+        public virtual ICollection<ProjectUser> ProjectUsers { get; set; }
     }
 }

@@ -1,0 +1,152 @@
+﻿@using Microsoft.EntityFrameworkCore
+@using Zeiterfassung.Data
+
+@inject IDbContextFactory<ZeiterfassungContext> DbFactory
+@inject ILogger<ManageProjectMembersDialog> Logger
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Mitglieder für Projekt verwalten</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (project is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudText Typo="Typo.h6" GutterBottom="true">@project.Name</MudText>
+
+            <MudText Class="mt-4 mb-2"><b>Aktuelle Mitglieder</b></MudText>
+            <MudList Clickable="false" T="ProjectUser">
+                @foreach (var member in project.ProjectUsers.OrderBy(u => u.User.UserName))
+                {
+                    <MudListItem Icon="@Icons.Material.Filled.Person">
+                        @member.User.UserName
+                        <MudChip Size="Size.Small" Color="Color.Primary" Class="ml-2">@member.Role</MudChip>
+                        @if (member.UserId != project.OwnerId) // Der Owner kann nicht entfernt werden
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveMember(member))" Class="ml-auto" />
+                        }
+                    </MudListItem>
+                }
+            </MudList>
+
+            <MudText Class="mt-6 mb-2"><b>Neues Mitglied hinzufügen</b></MudText>
+            <div class="d-flex">
+                <MudAutocomplete T="User"
+                                 Label="Muster-Benutzer auswählen"
+                                 @bind-Value="userToAdd"
+                                 SearchFunc="@SearchSampleUsers"
+                                 ToStringFunc="@(u => u?.UserName)"
+                                 Variant="Variant.Outlined"
+                                 Class="flex-grow-1" />
+                <MudButton OnClick="AddMember" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(userToAdd is null)" Class="ml-2 align-self-center">Hinzufügen</MudButton>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" OnClick="Close">Schließen</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int ProjectId { get; set; }
+
+    private Project? project;
+    private List<User> availableSampleUsers = new();
+    private User? userToAdd;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            project = await context.Projects
+                                   .Include(p => p.ProjectUsers)
+                                   .ThenInclude(pu => pu.User)
+                                   .AsNoTracking()
+                                   .FirstOrDefaultAsync(p => p.Id == ProjectId);
+            
+            var memberIds = project?.ProjectUsers.Select(pu => pu.UserId).ToList() ?? new List<string>();
+
+            availableSampleUsers = await context.Users
+                                                .Where(u => u.IsSampleUser && !memberIds.Contains(u.Id))
+                                                .OrderBy(u => u.UserName)
+                                                .AsNoTracking()
+                                                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Laden der Projektdaten für Dialog.");
+            Snackbar.Add("Laden der Mitglieder fehlgeschlagen.", Severity.Error);
+        }
+    }
+
+    private async Task<IEnumerable<User>> SearchSampleUsers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return availableSampleUsers;
+        
+        return availableSampleUsers.Where(u => u.UserName != null && u.UserName.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+    
+    private async Task AddMember()
+    {
+        if (userToAdd is null || project is null) return;
+        
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            var newMember = new ProjectUser
+            {
+                ProjectId = project.Id,
+                UserId = userToAdd.Id,
+                Role = ProjectUser.RoleMember
+            };
+            context.ProjectUsers.Add(newMember);
+            await context.SaveChangesAsync();
+            
+            Snackbar.Add($"{userToAdd.UserName} wurde zum Projekt hinzugefügt.", Severity.Success);
+            userToAdd = null; 
+            await LoadDataAsync(); 
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Hinzufügen eines Mitglieds.");
+            Snackbar.Add("Mitglied konnte nicht hinzugefügt werden.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveMember(ProjectUser memberToRemove)
+    {
+        try
+        {
+            await using var context = await DbFactory.CreateDbContextAsync();
+            context.ProjectUsers.Remove(memberToRemove);
+            await context.SaveChangesAsync();
+            
+            Snackbar.Add($"{memberToRemove.User.UserName} wurde aus dem Projekt entfernt.", Severity.Info);
+            await LoadDataAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Entfernen eines Mitglieds.");
+            Snackbar.Add("Mitglied konnte nicht entfernt werden.", Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}

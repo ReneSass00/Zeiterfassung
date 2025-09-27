@@ -11,17 +11,14 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<Projects> Logger
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Meine Projekte</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Meine Projekte</MudText>
-<MudText Class="mb-4">Hier kannst du deine Projekte verwalten, auf die du später Zeiten erfassen wirst.</MudText>
+<MudText Class="mb-4">Hier siehst du alle Projekte, die du erstellt hast oder in denen du Mitglied bist.</MudText>
 
-<MudTable T="Project"
-          ServerData="@ServerReload"
-          Dense="true"
-          Hover="true"
-          @ref="table">
+<MudTable T="Project" ServerData="@ServerReload" Dense="true" Hover="true" @ref="table">
     <ToolBarContent>
         <MudSpacer />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateProjectDialog">Neues Projekt</MudButton>
@@ -29,12 +26,25 @@
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Beschreibung</MudTh>
-        <MudTh>Erstellt am</MudTh>
+        <MudTh>Ersteller</MudTh>
+        <MudTh Style="text-align:right">Aktionen</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Name">@context.Name</MudTd>
         <MudTd DataLabel="Beschreibung">@context.Description</MudTd>
-        <MudTd DataLabel="Erstellt am">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
+        <MudTd DataLabel="Ersteller">@context.User.UserName</MudTd>
+        <MudTd DataLabel="Aktionen" Style="text-align:right">
+            @if (context.OwnerId == currentUserId)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Group" Variant="Variant.Filled" Color="Color.Default" Size="Size.Small" OnClick="@(() => OpenManageMembersDialog(context.Id))" Title="Mitglieder verwalten" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditProjectDialog(context))" Class="ml-2" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteProject(context))" Class="ml-2" />
+            }
+            else
+            {
+                <MudChip T="object" Size="Size.Small" Color="Color.Secondary">Mitglied</MudChip>
+            }
+        </MudTd>
     </RowTemplate>
     <NoRecordsContent>
         <MudText>Keine Projekte gefunden. Erstelle dein erstes Projekt!</MudText>
@@ -50,25 +60,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Logger.LogInformation("Projects page is initializing.");
-        try
-        {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
-            if (user.Identity is { IsAuthenticated: true })
-            {
-                currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                Logger.LogInformation("User authenticated with ID {UserId}", currentUserId);
-            }
-            else
-            {
-                Logger.LogWarning("User is not authenticated.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error during component initialization for user {UserId}", currentUserId);
-        }
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
     }
 
     private async Task<TableData<Project>> ServerReload(TableState state, CancellationToken token)
@@ -77,20 +70,23 @@
         {
             if (string.IsNullOrEmpty(currentUserId))
             {
-                Logger.LogWarning("ServerReload called without a user ID.");
                 return new TableData<Project>() { TotalItems = 0, Items = new List<Project>() };
             }
 
             await using var context = await DbFactory.CreateDbContextAsync(token);
-            var query = context.Projects.Where(p => p.UserId == currentUserId);
+
+            // === KORRIGIERTE ABFRAGE ===
+            var query = context.Projects
+                               .Include(p => p.User) // Ersteller-Info laden
+                               .Include(p => p.ProjectUsers) // <-- DIESE ZEILE IST DIE LÖSUNG
+                               .Where(p => p.OwnerId == currentUserId || p.ProjectUsers.Any(pu => pu.UserId == currentUserId))
+                               .AsNoTracking();
 
             var totalItems = await query.CountAsync(token);
             var items = await query.OrderBy(p => p.Name)
                                    .Skip(state.Page * state.PageSize)
                                    .Take(state.PageSize)
                                    .ToListAsync(token);
-
-            Logger.LogInformation("Successfully loaded {ItemCount} projects for user {UserId}", items.Count, currentUserId);
             return new TableData<Project>() { TotalItems = totalItems, Items = items };
         }
         catch (Exception ex)
@@ -100,6 +96,12 @@
         }
     }
 
+    private void OpenManageMembersDialog(int projectId)
+    {
+        var parameters = new DialogParameters<ManageProjectMembersDialog> { { x => x.ProjectId, projectId } };
+        DialogService.Show<ManageProjectMembersDialog>("Mitglieder verwalten", parameters);
+    }
+
     private async Task OpenCreateProjectDialog()
     {
         var dialog = DialogService.Show<CreateProjectDialog>("Neues Projekt erstellen");
@@ -107,23 +109,87 @@
 
         if (!result.Canceled && result.Data is Project newProject)
         {
-            Logger.LogInformation("Create project dialog was submitted for user {UserId}", currentUserId);
             try
             {
                 await using var context = await DbFactory.CreateDbContextAsync();
-                newProject.UserId = currentUserId!; // Wir wissen, dass der User angemeldet ist.
+                newProject.OwnerId = currentUserId!;
+                newProject.ProjectUsers = new List<ProjectUser>
+                {
+                    new ProjectUser { UserId = currentUserId!, Role = ProjectUser.RoleManager }
+                };
 
                 context.Projects.Add(newProject);
                 await context.SaveChangesAsync();
-
-                Logger.LogInformation("New project '{ProjectName}' saved successfully for user {UserId}", newProject.Name, currentUserId);
-
-                // Tabelle neu laden, um den neuen Eintrag anzuzeigen
+                Snackbar.Add("Projekt erfolgreich erstellt.", Severity.Success);
                 await table.ReloadServerData();
             }
             catch (Exception ex)
             {
                 Logger.LogError(ex, "Failed to save new project for user {UserId}", currentUserId);
+                Snackbar.Add("Fehler beim Speichern des Projekts.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditProjectDialog(Project projectToEdit)
+    {
+        var parameters = new DialogParameters<CreateProjectDialog> { { x => x.ProjectToEdit, projectToEdit } };
+        var dialog = DialogService.Show<CreateProjectDialog>("Projekt bearbeiten", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Project updatedProject)
+        {
+            try
+            {
+                await using var context = await DbFactory.CreateDbContextAsync();
+                var projectFromDb = await context.Projects.FindAsync(updatedProject.Id);
+                if (projectFromDb is not null)
+                {
+                    projectFromDb.Name = updatedProject.Name;
+                    projectFromDb.Description = updatedProject.Description;
+
+                    await context.SaveChangesAsync();
+                    Snackbar.Add("Projekt erfolgreich aktualisiert.", Severity.Success);
+                }
+                await table.ReloadServerData();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to update project {ProjectId} for user {UserId}", updatedProject.Id, currentUserId);
+                Snackbar.Add("Fehler beim Aktualisieren des Projekts.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteProject(Project projectToDelete)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Löschen bestätigen",
+            $"Mötest du das Projekt '{projectToDelete.Name}' wirklich löschen? Alle zugehörigen Zeiteinträge und Mitgliedschaften werden ebenfalls gelöscht.",
+            yesText: "Löschen!", cancelText: "Abbrechen");
+
+        if (result == true)
+        {
+            try
+            {
+                await using var context = await DbFactory.CreateDbContextAsync();
+                var projectWithIncludes = await context.Projects
+                    .Include(p => p.ProjectUsers)
+                    .Include(p => p.TimeEntries)
+                    .FirstOrDefaultAsync(p => p.Id == projectToDelete.Id);
+
+                if (projectWithIncludes is not null)
+                {
+                    context.Projects.Remove(projectWithIncludes);
+                    await context.SaveChangesAsync();
+                    Snackbar.Add("Projekt gelöscht.", Severity.Info);
+                    await table.ReloadServerData();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete project {ProjectId} for user {UserId}", projectToDelete.Id, currentUserId);
+                Snackbar.Add("Fehler beim Löschen des Projekts.", Severity.Error);
             }
         }
     }

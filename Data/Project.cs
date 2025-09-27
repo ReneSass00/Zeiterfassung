@@ -18,9 +18,15 @@ namespace Zeiterfassung.Data
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [Required]
-        public string UserId { get; set; }
+        public string OwnerId { get; set; }
 
-        [ForeignKey("UserId")]
+        [ForeignKey("OwnerId")]
         public virtual User User { get; set; }
+
+        // Navigationseigenschaft zur Verknüpfungstabelle
+        public virtual ICollection<ProjectUser> ProjectUsers { get; set; }
+
+        public virtual ICollection<TimeEntry> TimeEntries { get; set; }
+
     }
 }

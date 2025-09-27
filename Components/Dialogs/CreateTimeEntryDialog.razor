@@ -1,22 +1,20 @@
 ﻿@using Zeiterfassung.Data
 @using System.ComponentModel.DataAnnotations
 
-@namespace Zeiterfassung.Components.Dialogs
-
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Neuen Zeiteintrag erstellen</MudText>
+        <MudText Typo="Typo.h6">@DialogTitle</MudText>
     </TitleContent>
     <DialogContent>
-        <MudForm @ref="form" @bind-IsValid="@success" Model="newTimeEntry">
-            <MudSelect T="int" @bind-Value="newTimeEntry.ProjectId" For="@(() => newTimeEntry.ProjectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
+        <MudForm @ref="form" @bind-IsValid="@success" Model="timeEntryModel">
+            <MudSelect T="int" @bind-Value="timeEntryModel.ProjectId" For="@(() => timeEntryModel.ProjectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
                 @foreach (var proj in UserProjects)
                 {
                     <MudSelectItem Value="@proj.Id">@proj.Name</MudSelectItem>
                 }
             </MudSelect>
 
-            <MudTextField @bind-Value="newTimeEntry.Description" Label="Beschreibung" Required="true" RequiredError="Bitte eine Beschreibung angeben." For="@(() => newTimeEntry.Description)" Class="mt-3" />
+            <MudTextField @bind-Value="timeEntryModel.Description" Label="Beschreibung" Required="true" RequiredError="Bitte eine Beschreibung angeben." For="@(() => timeEntryModel.Description)" Class="mt-3" />
 
             <MudDatePicker @bind-Date="date" Label="Datum" Required="true" Class="mt-3" />
             <div class="d-flex mt-3">
@@ -38,23 +36,46 @@
     [Parameter]
     public List<Project> UserProjects { get; set; } = new();
 
+    [Parameter]
+    public TimeEntry? EntryToEdit { get; set; }
+
     private MudForm form;
     private bool success;
-    private TimeEntry newTimeEntry = new();
+    private TimeEntry timeEntryModel = new();
+
+    private string DialogTitle = "Neuen Zeiteintrag erstellen";
 
     // Hilfsvariablen für die MudBlazor Picker
-    private DateTime? date = DateTime.Today;
-    private TimeSpan? startTime = new TimeSpan(9, 0, 0);
-    private TimeSpan? endTime = new TimeSpan(10, 0, 0);
+    private DateTime? date;
+    private TimeSpan? startTime;
+    private TimeSpan? endTime;
+
+    protected override void OnInitialized()
+    {
+        if (EntryToEdit is not null)
+        {
+            // Wenn ein Eintrag zum Bearbeiten übergeben wurde, füllen wir das Formular
+            DialogTitle = "Zeiteintrag bearbeiten";
+            timeEntryModel = EntryToEdit;
+            date = EntryToEdit.StartTime.Date;
+            startTime = EntryToEdit.StartTime.TimeOfDay;
+            endTime = EntryToEdit.EndTime.TimeOfDay;
+        }
+        else
+        {
+            // Andernfalls starten wir mit Standardwerten für einen neuen Eintrag
+            date = DateTime.Today;
+            startTime = new TimeSpan(9, 0, 0);
+        }
+    }
 
     private void Submit()
     {
-        // Kombiniere Datum und Zeit vor dem Schließen
         if (date.HasValue && startTime.HasValue && endTime.HasValue)
         {
-            newTimeEntry.StartTime = date.Value.Add(startTime.Value);
-            newTimeEntry.EndTime = date.Value.Add(endTime.Value);
-            MudDialog.Close(DialogResult.Ok(newTimeEntry));
+            timeEntryModel.StartTime = date.Value.Add(startTime.Value);
+            timeEntryModel.EndTime = date.Value.Add(endTime.Value);
+            MudDialog.Close(DialogResult.Ok(timeEntryModel));
         }
     }
 

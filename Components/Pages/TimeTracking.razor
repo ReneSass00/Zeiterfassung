@@ -11,6 +11,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<TimeTracking> Logger
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Zeiterfassung</PageTitle>
 
@@ -27,6 +28,7 @@
         <MudTh>Start</MudTh>
         <MudTh>Ende</MudTh>
         <MudTh>Dauer</MudTh>
+        <MudTh Style="text-align:right">Aktionen</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Projekt">@context.Project.Name</MudTd>
@@ -34,7 +36,17 @@
         <MudTd DataLabel="Start">@context.StartTime.ToString("g")</MudTd>
         <MudTd DataLabel="Ende">@context.EndTime.ToString("g")</MudTd>
         <MudTd DataLabel="Dauer">@((context.EndTime - context.StartTime).ToString(@"hh\:mm"))</MudTd>
+        <MudTd DataLabel="Aktionen" Style="text-align:right">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditTimeEntryDialog(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteTimeEntry(context))" Class="ml-2" />
+        </MudTd>
     </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Keine Einträge gefunden.</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </LoadingContent>
 </MudTable>
 
 @code {
@@ -53,7 +65,7 @@
         {
             await using var context = await DbFactory.CreateDbContextAsync(token);
             var query = context.TimeEntries
-                               .Include(te => te.Project) // Wichtig: Lade die Projektdaten mit!
+                               .Include(te => te.Project)
                                .Where(te => te.UserId == currentUserId);
 
             var totalItems = await query.CountAsync(token);
@@ -72,12 +84,8 @@
 
     private async Task OpenCreateTimeEntryDialog()
     {
-        // Zuerst die Projekte des Benutzers laden, um sie dem Dialog zu übergeben
         await using var context = await DbFactory.CreateDbContextAsync();
-        var userProjects = await context.Projects
-                                        .Where(p => p.UserId == currentUserId)
-                                        .OrderBy(p => p.Name)
-                                        .ToListAsync();
+        var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
 
         var parameters = new DialogParameters<CreateTimeEntryDialog> { { x => x.UserProjects, userProjects } };
         var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag", parameters);
@@ -88,9 +96,70 @@
             newTimeEntry.UserId = currentUserId!;
             context.TimeEntries.Add(newTimeEntry);
             await context.SaveChangesAsync();
-
-            Logger.LogInformation("New time entry for project {ProjectId} created by user {UserId}", newTimeEntry.ProjectId, currentUserId);
+            Snackbar.Add("Eintrag erfolgreich erstellt.", Severity.Success);
             await table.ReloadServerData();
+        }
+    }
+
+    private async Task OpenEditTimeEntryDialog(TimeEntry entryToEdit)
+    {
+        await using var context = await DbFactory.CreateDbContextAsync();
+        var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
+
+        var parameters = new DialogParameters<CreateTimeEntryDialog>
+        {
+            { x => x.UserProjects, userProjects },
+            { x => x.EntryToEdit, entryToEdit }
+        };
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Zeiteintrag bearbeiten", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is TimeEntry updatedEntry)
+        {
+            // === KORRIGIERTER TEIL ===
+            var entryFromDb = await context.TimeEntries.FindAsync(updatedEntry.Id);
+            if (entryFromDb is not null)
+            {
+                entryFromDb.ProjectId = updatedEntry.ProjectId;
+                entryFromDb.Description = updatedEntry.Description;
+                entryFromDb.StartTime = updatedEntry.StartTime;
+                entryFromDb.EndTime = updatedEntry.EndTime;
+
+                await context.SaveChangesAsync();
+                Snackbar.Add("Eintrag erfolgreich aktualisiert.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Fehler: Eintrag konnte nicht in der Datenbank gefunden werden.", Severity.Error);
+            }
+            // === ENDE KORRIGIERTER TEIL ===
+
+            await table.ReloadServerData();
+        }
+    }
+
+    private async Task DeleteTimeEntry(TimeEntry entryToDelete)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Löschen bestätigen",
+            $"Möchtest du den Zeiteintrag '{entryToDelete.Description}' wirklich löschen?",
+            yesText: "Löschen!", cancelText: "Abbrechen");
+
+        if (result == true)
+        {
+            try
+            {
+                await using var context = await DbFactory.CreateDbContextAsync();
+                context.TimeEntries.Remove(entryToDelete);
+                await context.SaveChangesAsync();
+                Snackbar.Add("Eintrag gelöscht.", Severity.Info);
+                await table.ReloadServerData();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Fehler beim Löschen des Zeiteintrags {TimeEntryId}", entryToDelete.Id);
+                Snackbar.Add("Fehler beim Löschen des Eintrags.", Severity.Error);
+            }
         }
     }
 }

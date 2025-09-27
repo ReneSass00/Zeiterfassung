@@ -5,15 +5,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Zeiterfassung.Data;
 
 #nullable disable
 
 namespace Zeiterfassung.Migrations
 {
     [DbContext(typeof(ZeiterfassungContext))]
-    [Migration("20250926192959_AddIdentitySchema")]
-    partial class AddIdentitySchema
+    [Migration("20250927183649_Test")]
+    partial class Test
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -158,6 +157,91 @@ namespace Zeiterfassung.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Zeiterfassung.Data.Project", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.ProjectUser", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ProjectUser");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.TimeEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TimeEntries");
+                });
+
             modelBuilder.Entity("Zeiterfassung.Data.User", b =>
                 {
                     b.Property<string>("Id")
@@ -175,6 +259,9 @@ namespace Zeiterfassung.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSampleUser")
                         .HasColumnType("bit");
 
                     b.Property<bool>("LockoutEnabled")
@@ -221,6 +308,42 @@ namespace Zeiterfassung.Migrations
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
                     b.ToTable("AspNetUsers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = "8c37d49f-7966-49cc-9f31-2241bf4c3ceb",
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "a0b6ab7a-654e-4cc7-8f78-0ee801ef1869",
+                            Email = "anna.muster@email.com",
+                            EmailConfirmed = true,
+                            IsSampleUser = true,
+                            LockoutEnabled = false,
+                            NormalizedEmail = "ANNA.MUSTER@EMAIL.COM",
+                            NormalizedUserName = "ANNA.MUSTER@EMAIL.COM",
+                            PasswordHash = "AQAAAAIAAYagAAAAENhaF/HF6/8UJmpj691OeXWSAl0sTlCj+mgsl1O5qAfY41yZf5dTyEig5r4a2JyICw==",
+                            PhoneNumberConfirmed = false,
+                            SecurityStamp = "d608e522-93f1-4824-a36b-b5e834a1b899",
+                            TwoFactorEnabled = false,
+                            UserName = "anna.muster@email.com"
+                        },
+                        new
+                        {
+                            Id = "43060658-5861-4b76-93bc-4fe4612472e6",
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "db5168ea-5e96-462d-a782-9b86fb531089",
+                            Email = "ben.beispiel@email.com",
+                            EmailConfirmed = true,
+                            IsSampleUser = true,
+                            LockoutEnabled = false,
+                            NormalizedEmail = "BEN.BEISPIEL@EMAIL.COM",
+                            NormalizedUserName = "BEN.BEISPIEL@EMAIL.COM",
+                            PasswordHash = "AQAAAAIAAYagAAAAEBBr9jIjwGoC1bQsgjEcMbLaoHCzViV9fwJa8pSdwcdxNcvi32fMQ2rHGQCqPrzU0w==",
+                            PhoneNumberConfirmed = false,
+                            SecurityStamp = "46415573-fec0-404d-b5d4-3f0462da33ce",
+                            TwoFactorEnabled = false,
+                            UserName = "ben.beispiel@email.com"
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -272,6 +395,65 @@ namespace Zeiterfassung.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.Project", b =>
+                {
+                    b.HasOne("Zeiterfassung.Data.User", "User")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.ProjectUser", b =>
+                {
+                    b.HasOne("Zeiterfassung.Data.Project", "Project")
+                        .WithMany("ProjectUsers")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zeiterfassung.Data.User", "User")
+                        .WithMany("ProjectUsers")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.TimeEntry", b =>
+                {
+                    b.HasOne("Zeiterfassung.Data.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zeiterfassung.Data.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.Project", b =>
+                {
+                    b.Navigation("ProjectUsers");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.User", b =>
+                {
+                    b.Navigation("ProjectUsers");
                 });
 #pragma warning restore 612, 618
         }

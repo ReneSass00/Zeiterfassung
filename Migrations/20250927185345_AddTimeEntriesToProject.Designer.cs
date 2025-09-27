@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Zeiterfassung.Migrations
 {
     [DbContext(typeof(ZeiterfassungContext))]
-    [Migration("20250926204014_AddTimeEntryTable")]
-    partial class AddTimeEntryTable
+    [Migration("20250927185345_AddTimeEntriesToProject")]
+    partial class AddTimeEntriesToProject
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -177,15 +177,34 @@ namespace Zeiterfassung.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("UserId")
+                    b.Property<string>("OwnerId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("OwnerId");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.ProjectUser", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ProjectUsers");
                 });
 
             modelBuilder.Entity("Zeiterfassung.Data.TimeEntry", b =>
@@ -240,6 +259,9 @@ namespace Zeiterfassung.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSampleUser")
                         .HasColumnType("bit");
 
                     b.Property<bool>("LockoutEnabled")
@@ -343,9 +365,28 @@ namespace Zeiterfassung.Migrations
                 {
                     b.HasOne("Zeiterfassung.Data.User", "User")
                         .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.ProjectUser", b =>
+                {
+                    b.HasOne("Zeiterfassung.Data.Project", "Project")
+                        .WithMany("ProjectUsers")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zeiterfassung.Data.User", "User")
+                        .WithMany("ProjectUsers")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Project");
 
                     b.Navigation("User");
                 });
@@ -353,7 +394,7 @@ namespace Zeiterfassung.Migrations
             modelBuilder.Entity("Zeiterfassung.Data.TimeEntry", b =>
                 {
                     b.HasOne("Zeiterfassung.Data.Project", "Project")
-                        .WithMany()
+                        .WithMany("TimeEntries")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -367,6 +408,18 @@ namespace Zeiterfassung.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.Project", b =>
+                {
+                    b.Navigation("ProjectUsers");
+
+                    b.Navigation("TimeEntries");
+                });
+
+            modelBuilder.Entity("Zeiterfassung.Data.User", b =>
+                {
+                    b.Navigation("ProjectUsers");
                 });
 #pragma warning restore 612, 618
         }
