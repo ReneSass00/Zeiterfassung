@@ -87,8 +87,8 @@
         await using var context = await DbFactory.CreateDbContextAsync();
         var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
 
-        var parameters = new DialogParameters<CreateTimeEntryDialog> { { x => x.UserProjects, userProjects } };
-        var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag", parameters);
+        //var parameters = new DialogParameters<CreateTimeEntryDialog> { { x => x.UserProjects, userProjects } };
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag");
         var result = await dialog.Result;
 
         if (!result.Canceled && result.Data is TimeEntry newTimeEntry)
@@ -106,12 +106,12 @@
         await using var context = await DbFactory.CreateDbContextAsync();
         var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
 
-        var parameters = new DialogParameters<CreateTimeEntryDialog>
-        {
-            { x => x.UserProjects, userProjects },
-            { x => x.EntryToEdit, entryToEdit }
-        };
-        var dialog = DialogService.Show<CreateTimeEntryDialog>("Zeiteintrag bearbeiten", parameters);
+        // var parameters = new DialogParameters<CreateTimeEntryDialog>
+        // {
+        //     { x => x.UserProjects, userProjects },
+        //     { x => x.EntryToEdit, entryToEdit }
+        // };
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Zeiteintrag bearbeiten");
         var result = await dialog.Result;
 
         if (!result.Canceled && result.Data is TimeEntry updatedEntry)

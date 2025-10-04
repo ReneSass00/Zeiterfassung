@@ -1,0 +1,174 @@
+﻿@page "/dashboard"
+@page "/"
+
+@using Zeiterfassung.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+@using Zeiterfassung.Components.Layout
+
+@inject ZeiterfassungContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Dashboard</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+    <MudText Typo="Typo.h4" GutterBottom="true">Willkommen zurück!</MudText>
+
+    @* --- NEU: LIVE-TIMER HIER EINGEFÜGT --- *@
+    <MudPaper Elevation="2" Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" GutterBottom="true">Live-Zeiterfassung</MudText>
+        <LiveTimer />
+    </MudPaper>
+    @* --- ENDE TIMER --- *@
+
+    <MudPaper Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" GutterBottom="true">Aktivitätsübersicht</MudText>
+        <MudButtonGroup Color="Color.Primary" Variant="Variant.Outlined">
+            <MudButton OnClick="@(() => UpdateCharts(30))">Letzte 30 Tage</MudButton>
+            <MudButton OnClick="@(() => UpdateCharts(60))">Letzte 60 Tage</MudButton>
+            <MudButton OnClick="@(() => UpdateCharts(90))">Letzte 90 Tage</MudButton>
+        </MudButtonGroup>
+    </MudPaper>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Height="100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Zeitverteilung pro Projekt</MudText>
+                @if (_pieChartData.Length > 0)
+                {
+                    <MudChart ChartType="ChartType.Pie" @ref="_pieChart" Width="100%" Height="350px" InputData="@_pieChartData" InputLabels="@_pieChartLabels" />
+                }
+                else
+                {
+                    <MudText>Keine Daten für den gewählten Zeitraum vorhanden.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Height="100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Erfasste Stunden pro Tag (Letzte 7 Tage)</MudText>
+                @if (_barChartSeries.Any())
+                {
+                    <MudChart ChartType="ChartType.Bar" @ref="_barChart" Width="100%" Height="350px" />
+                }
+                else
+                {
+                    <MudText>Keine Daten für die letzten 7 Tage vorhanden.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+
+    private MudChart? _pieChart;
+    private double[] _pieChartData = [];
+    private string[] _pieChartLabels = [];
+
+    private MudChart? _barChart;
+    private List<ChartSeries> _barChartSeries = [];
+    private string[] _barChartXAxisLabels = [];
+
+    private ClaimsPrincipal? _user;
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _user = authState.User;
+        _userId = _user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        await UpdateCharts(30); // Standardmäßig 30 Tage laden
+        await LoadBarChartData();
+
+        //StateHasChanged(); ggf. wieder rein machen
+    }
+
+    private async Task UpdateCharts(int days)
+    {
+        await LoadPieChartData(days);
+        StateHasChanged();
+    }
+
+    private async Task LoadPieChartData(int days)
+    {
+        if (_userId is null) return;
+
+        var fromDate = DateTime.UtcNow.AddDays(-days);
+        var timeEntriesData = await DbContext.TimeEntries
+            .Where(te => te.UserId == _userId && te.StartTime >= fromDate)
+            .Select(te => new
+            {
+                ProjectName = te.Project.Name,
+                te.StartTime,
+                te.EndTime
+            })
+            .ToListAsync();
+
+        var projectTimes = timeEntriesData
+            .GroupBy(te => te.ProjectName)
+            .Select(g => new
+            {
+                ProjectName = g.Key,
+                TotalHours = g.Sum(te => (te.EndTime - te.StartTime).TotalHours)
+            })
+            .OrderByDescending(x => x.TotalHours)
+            .ToList();
+
+        _pieChartData = projectTimes.Select(pt => Math.Round(pt.TotalHours, 2)).ToArray();
+        _pieChartLabels = projectTimes.Select(pt => pt.ProjectName).ToArray();
+    }
+
+    private async Task LoadBarChartData()
+    {
+        if (_userId is null) return;
+
+        var fromDate = DateTime.UtcNow.Date.AddDays(-6);
+
+        var timeEntriesData = await DbContext.TimeEntries
+            .Where(te => te.UserId == _userId && te.StartTime.Date >= fromDate)
+            .Select(te => new
+            {
+                Date = te.StartTime.Date,
+                te.StartTime,
+                te.EndTime
+            })
+            .ToListAsync();
+
+        var dailyHours = timeEntriesData
+            .GroupBy(te => te.Date)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(te => (te.EndTime - te.StartTime).TotalHours)
+            );
+
+        var last7Days = Enumerable.Range(0, 7).Select(i => DateTime.UtcNow.Date.AddDays(-i));
+
+        var data = new List<double>();
+        var labels = new List<string>();
+
+        foreach (var day in last7Days.OrderBy(d => d))
+        {
+            labels.Add(day.ToString("ddd, dd.MM."));
+            data.Add(dailyHours.TryGetValue(day, out var hours) ? Math.Round(hours, 2) : 0);
+        }
+
+        _barChartSeries =
+        [
+            new ChartSeries { Name = "Erfasste Stunden", Data = data.ToArray() }
+        ];
+        _barChartXAxisLabels = labels.ToArray();
+
+        await InvokeAsync(async () =>
+        {
+            if (_barChart != null)
+            {
+                _barChart.XAxisLabels = _barChartXAxisLabels;
+            }
+        });
+    }
+
+}

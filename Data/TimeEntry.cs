@@ -32,5 +32,7 @@ namespace Zeiterfassung.Data
 
         [ForeignKey("UserId")]
         public virtual User User { get; set; }
+        [NotMapped]
+        public TimeSpan Duration => EndTime - StartTime;
     }
 }

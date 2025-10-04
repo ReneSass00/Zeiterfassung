@@ -1,81 +1,120 @@
-﻿@using Zeiterfassung.Data
-@using System.ComponentModel.DataAnnotations
+﻿@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using Zeiterfassung.Data
+
+@inject ZeiterfassungContext DbContext
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@DialogTitle</MudText>
+        <MudText Typo="Typo.h6">Neuen Zeiteintrag erstellen</MudText>
     </TitleContent>
     <DialogContent>
-        <MudForm @ref="form" @bind-IsValid="@success" Model="timeEntryModel">
-            <MudSelect T="int" @bind-Value="timeEntryModel.ProjectId" For="@(() => timeEntryModel.ProjectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
-                @foreach (var proj in UserProjects)
+        <MudForm @ref="_form" @bind-IsValid="_success" Class="mt-4">
+            <MudSelect T="int" @bind-Value="_timeEntry.ProjectId" For="@(() => _timeEntry.ProjectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
+                @foreach (var project in _userProjects)
                 {
-                    <MudSelectItem Value="@proj.Id">@proj.Name</MudSelectItem>
+                    <MudSelectItem Value="@project.Id">@project.Name</MudSelectItem>
                 }
             </MudSelect>
-
-            <MudTextField @bind-Value="timeEntryModel.Description" Label="Beschreibung" Required="true" RequiredError="Bitte eine Beschreibung angeben." For="@(() => timeEntryModel.Description)" Class="mt-3" />
-
-            <MudDatePicker @bind-Date="date" Label="Datum" Required="true" Class="mt-3" />
-            <div class="d-flex mt-3">
-                <MudTimePicker @bind-Time="startTime" Label="Startzeit" Required="true" />
-                <MudTimePicker @bind-Time="endTime" Label="Endzeit" Required="true" Class="ml-3" />
-            </div>
+            <MudTextField @bind-Value="_timeEntry.Description" For="@(() => _timeEntry.Description)" Label="Beschreibung" Lines="3" Class="mt-4" />
+            <MudDatePicker @bind-Date="_startDate" Label="Startdatum" Required="true" Class="mt-4" />
+            <MudTimePicker @bind-Time="_startTime" Label="Startzeit" Required="true" />
+            <MudDatePicker @bind-Date="_endDate" Label="Enddatum" Required="true" Class="mt-4" />
+            <MudTimePicker @bind-Time="_endTime" Label="Endzeit" Required="true" />
         </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Abbrechen</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!success)">Speichern</MudButton>
+        <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Disabled="@(!_success)" OnClick="Submit">Speichern</MudButton>
     </DialogActions>
 </MudDialog>
 
+
 @code {
-    [CascadingParameter]
-    MudDialogInstance MudDialog { get; set; }
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter]
-    public List<Project> UserProjects { get; set; } = new();
+    // --- NEUE PARAMETER FÜR DEN TIMER ---
+    [Parameter] public int? PreselectedProjectId { get; set; }
+    [Parameter] public DateTime? PreselectedStartTime { get; set; }
+    [Parameter] public DateTime? PreselectedEndTime { get; set; }
+    // --- ENDE NEUE PARAMETER ---
 
-    [Parameter]
-    public TimeEntry? EntryToEdit { get; set; }
+    private MudForm? _form;
+    private bool _success;
 
-    private MudForm form;
-    private bool success;
-    private TimeEntry timeEntryModel = new();
+    private TimeEntry _timeEntry = new();
+    private List<Project> _userProjects = new();
+    private string? _userId;
 
-    private string DialogTitle = "Neuen Zeiteintrag erstellen";
+    // Hilfsvariablen für die MudBlazor Date/Time Picker
+    private DateTime? _startDate;
+    private TimeSpan? _startTime;
+    private DateTime? _endDate;
+    private TimeSpan? _endTime;
 
-    // Hilfsvariablen für die MudBlazor Picker
-    private DateTime? date;
-    private TimeSpan? startTime;
-    private TimeSpan? endTime;
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        if (EntryToEdit is not null)
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (_userId is not null)
         {
-            // Wenn ein Eintrag zum Bearbeiten übergeben wurde, füllen wir das Formular
-            DialogTitle = "Zeiteintrag bearbeiten";
-            timeEntryModel = EntryToEdit;
-            date = EntryToEdit.StartTime.Date;
-            startTime = EntryToEdit.StartTime.TimeOfDay;
-            endTime = EntryToEdit.EndTime.TimeOfDay;
+            _userProjects = await DbContext.Projects
+                .Where(p => p.OwnerId == _userId || p.ProjectUsers.Any(tm => tm.UserId == _userId))
+                .OrderBy(p => p.Name)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        // --- NEUE LOGIK: VORAUSFÜLLEN DER DATEN ---
+        // Wenn Daten vom Timer übergeben wurden, nutze sie.
+        // Ansonsten nutze die Standardwerte (aktuelles Datum).
+        _timeEntry.ProjectId = PreselectedProjectId ?? 0;
+
+        var initialStartTime = PreselectedStartTime ?? DateTime.Now;
+        var initialEndTime = PreselectedEndTime ?? DateTime.Now;
+
+        _startDate = initialStartTime.Date;
+        _startTime = initialStartTime.TimeOfDay;
+        _endDate = initialEndTime.Date;
+        _endTime = initialEndTime.TimeOfDay;
+        // --- ENDE NEUE LOGIK ---
+    }
+
+    private async Task Submit()
+    {
+        await _form!.Validate();
+        if (!_success)
+        {
+            Snackbar.Add("Bitte alle erforderlichen Felder ausfüllen.", Severity.Warning);
+            return;
+        }
+
+        // Kombiniere Datum und Zeit
+        if (_startDate.HasValue && _startTime.HasValue && _endDate.HasValue && _endTime.HasValue)
+        {
+            _timeEntry.StartTime = _startDate.Value.Add(_startTime.Value);
+            _timeEntry.EndTime = _endDate.Value.Add(_endTime.Value);
+            _timeEntry.UserId = _userId!;
+
+            if (_timeEntry.Duration.TotalSeconds < 0)
+            {
+                Snackbar.Add("Die Endzeit darf nicht vor der Startzeit liegen.", Severity.Error);
+                return;
+            }
+
+            await DbContext.TimeEntries.AddAsync(_timeEntry);
+            await DbContext.SaveChangesAsync();
+            Snackbar.Add("Zeiteintrag erfolgreich gespeichert.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
         }
         else
         {
-            // Andernfalls starten wir mit Standardwerten für einen neuen Eintrag
-            date = DateTime.Today;
-            startTime = new TimeSpan(9, 0, 0);
-        }
-    }
-
-    private void Submit()
-    {
-        if (date.HasValue && startTime.HasValue && endTime.HasValue)
-        {
-            timeEntryModel.StartTime = date.Value.Add(startTime.Value);
-            timeEntryModel.EndTime = date.Value.Add(endTime.Value);
-            MudDialog.Close(DialogResult.Ok(timeEntryModel));
+            Snackbar.Add("Ungültiges Datum oder Uhrzeit.", Severity.Error);
         }
     }
 

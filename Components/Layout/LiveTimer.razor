@@ -1,0 +1,155 @@
+﻿@using Zeiterfassung.Services
+@using Zeiterfassung.Data
+@using Zeiterfassung.Components.Pages
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components;
+@using Zeiterfassung.Components.Dialogs;
+@using MudBlazor;
+@implements IDisposable
+
+@inject TimerStateService TimerState
+@inject IDialogService DialogService
+@inject ZeiterfassungContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+
+<CascadingValue Value="this">
+    @if (TimerState.IsRunning)
+    {
+        <div class="d-flex align-center gap-2" style="min-width: 250px;">
+            <MudText Color="Color.Inherit" Class="d-none d-sm-block">@TimerState.SelectedProjectName</MudText>
+            <MudText Color="Color.Inherit"><strong>@_elapsedTime</strong></MudText>
+            <MudTooltip Text="Timer stoppen und Eintrag erstellen">
+                <MudIconButton Icon="@Icons.Material.Filled.Stop" Color="Color.Error" OnClick="StopTimer" />
+            </MudTooltip>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex align-center gap-2" style="width: 300px;">
+            <MudSelect T="int?"
+                       @bind-Value="_selectedProjectId"
+                       Label="Projekt auswählen"
+                       Variant="Variant.Outlined"
+                       Dense="true"
+                       Margin="Margin.Dense"
+                       Class="white-text-select">
+                @foreach (var project in _userProjects)
+                {
+                    <MudSelectItem Value="@((int?)project.Id)">@project.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTooltip Text="Timer starten">
+                <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Success" Disabled="@(_selectedProjectId == null)" OnClick="StartTimer" />
+            </MudTooltip>
+        </div>
+    }
+</CascadingValue>
+
+<style>
+    .white-text-select .mud-input-label,
+    .white-text-select .mud-input,
+    .white-text-select .mud-input-slot .mud-icon-root {
+        color: white !important;
+    }
+
+    .white-text-select .mud-input-slot::before {
+        border-bottom-color: rgba(255,255,255,0.7) !important;
+    }
+</style>
+
+
+@code{
+    private List<Project> _userProjects = [];
+    private int? _selectedProjectId;
+    private string _elapsedTime = "00:00:00";
+    private System.Threading.Timer? _uiTimer;
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        TimerState.OnChange += OnTimerStateChanged;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (_userId is not null)
+        {
+            _userProjects = await DbContext.Projects
+                .Where(p => p.OwnerId == _userId || p.ProjectUsers.Any(tm => tm.UserId == _userId))
+                .OrderBy(p => p.Name)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+    }
+
+    private void StartTimer()
+    {
+        if (_selectedProjectId.HasValue)
+        {
+            var project = _userProjects.FirstOrDefault(p => p.Id == _selectedProjectId.Value);
+            if (project != null)
+            {
+                TimerState.StartTimer(project.Id, project.Name);
+            }
+        }
+    }
+
+    private async Task StopTimer()
+    {
+        var (startTime, projectId) = TimerState.StopTimer();
+
+        if (startTime.HasValue && projectId.HasValue)
+        {
+            var parameters = new DialogParameters<CreateTimeEntryDialog>
+                {
+                    { x => x.PreselectedProjectId, projectId.Value },
+                    { x => x.PreselectedStartTime, startTime.Value },
+                    { x => x.PreselectedEndTime, DateTime.UtcNow }
+                };
+
+            var dialog = await DialogService.ShowAsync<CreateTimeEntryDialog>("Zeiteintrag erstellen", parameters);
+            var result = await dialog.Result;
+
+            if (!result.Canceled)
+            {
+                // Hier könntest du das Dashboard informieren, sich zu aktualisieren,
+                // aber ein Neuladen der Seite erledigt das auch.
+            }
+        }
+    }
+
+    private void OnTimerStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            if (TimerState.IsRunning)
+            {
+                _uiTimer?.Dispose();
+                _uiTimer = new System.Threading.Timer(_ =>
+                {
+                    if (TimerState.StartTime.HasValue)
+                    {
+                        var elapsed = DateTime.UtcNow - TimerState.StartTime.Value;
+                        _elapsedTime = elapsed.ToString(@"hh\:mm\:ss");
+                        InvokeAsync(StateHasChanged);
+                    }
+                }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+            }
+            else
+            {
+                _uiTimer?.Dispose();
+                _uiTimer = null;
+                _elapsedTime = "00:00:00";
+            }
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        TimerState.OnChange -= OnTimerStateChanged;
+        _uiTimer?.Dispose();
+    }
+}

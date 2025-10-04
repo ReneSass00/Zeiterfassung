@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Zeiterfassung.Components.Account;
 using Zeiterfassung.Data;
+using Zeiterfassung.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -26,6 +27,8 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 
 builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<TimerStateService>();
+
 
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
@@ -72,5 +75,40 @@ app.MapRazorComponents<App>()
 app.MapRazorPages();
 
 app.MapAdditionalIdentityEndpoints();;
+
+// Create Sample and Guest Data if not exists already
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ZeiterfassungContext>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        // Stelle sicher, dass die Migrationen angewendet wurden, bevor geseedet wird.
+        await context.Database.MigrateAsync();
+        await DataSeeder.InitializeAsync(context, userManager);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
+
+
+// Create SampleUserData if not exists already
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        await SampleUserData.InitializeAsync(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred seeding the DB.");
+    }
+}
 
 app.Run();

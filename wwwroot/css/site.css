@@ -663,3 +663,7 @@ video {
   --tw-text-opacity: 1;
   color: rgb(147 197 253 / var(--tw-text-opacity, 1));
 }
+
+.mud-snackbar-location-top-right {
+    margin-top: 2.5rem;
+}

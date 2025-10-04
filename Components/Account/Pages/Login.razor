@@ -10,60 +10,77 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>Anmelden</PageTitle>
 
-<h1>Log in</h1>
+<h1>Anmelden</h1>
 <div class="row">
     <div class="col-md-4">
         <section>
             <StatusMessage Message="@errorMessage" />
-            <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
+            <EditForm Model="Input" Method="post" OnValidSubmit="LoginUser" FormName="login">
+                <AntiforgeryToken />
+                <h4>Verwende einen lokalen Account zum Anmelden.</h4>
                 <hr />
                 <ValidationSummary class="text-danger" role="alert" />
                 <div class="form-floating mb-3">
                     <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                    <label for="email" class="form-label">Email</label>
+                    <label for="email" class="form-label">E-Mail</label>
                     <ValidationMessage For="() => Input.Email" class="text-danger" />
                 </div>
                 <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="password" class="form-label">Password</label>
+                    <InputText @bind-Value="Input.Password" type="password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
+                    <label for="password" class="form-label">Passwort</label>
                     <ValidationMessage For="() => Input.Password" class="text-danger" />
                 </div>
                 <div class="checkbox mb-3">
                     <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
-                        Remember me
+                        <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input" />
+                        Angemeldet bleiben?
                     </label>
                 </div>
                 <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                </div>
-                <div>
-                    <p>
-                        <a href="Account/ForgotPassword">Forgot your password?</a>
-                    </p>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-                    </p>
-                    <p>
-                        <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-                    </p>
+                    <button type="submit" class="w-100 btn btn-lg btn-primary">Anmelden</button>
                 </div>
             </EditForm>
+
+            @* --- GAST-LOGIN-ABSCHNITT (ohne MudBlazor) --- *@
+            <div class="divider text-center my-4">
+                <span class="divider-text">Oder</span>
+            </div>
+
+            <button @onclick="LoginAsGuest" class="w-100 btn btn-lg btn-secondary">Als Gast mit Testdaten fortfahren</button>
+            @* --- ENDE GAST-LOGIN --- *@
+
+            <div class="d-flex flex-column align-items-center mt-3">
+                <p>
+                    <a href="Account/ForgotPassword">Passwort vergessen?</a>
+                </p>
+                <p>
+                    <a href="Account/Register?ReturnUrl=@ReturnUrl">Als neuer Benutzer registrieren</a>
+                </p>
+            </div>
         </section>
     </div>
-    @*Externes Login, erstmal deaktiviert*@
-@*     <div class="col-md-6 col-md-offset-2">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div> *@
 </div>
+
+<style>
+    .divider {
+        display: flex;
+        align-items: center;
+        text-align: center;
+    }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #ccc;
+        }
+
+    .divider-text {
+        padding: 0 1em;
+    }
+</style>
 
 @code {
     private string? errorMessage;
@@ -110,6 +127,26 @@
         else
         {
             errorMessage = "Error: Invalid login attempt.";
+        }
+    }
+
+    private async Task LoginAsGuest()
+    {
+        // Set the credentials for the guest user
+        var guestEmail = "guest@example.com";
+        var guestPassword = "GuestPassword123!";
+
+        // Use password sign in to log in the guest user
+        var result = await SignInManager.PasswordSignInAsync(guestEmail, guestPassword, isPersistent: false, lockoutOnFailure: false);
+
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("Guest user logged in.");
+            NavigationManager.NavigateTo(ReturnUrl ?? "/dashboard", forceLoad: true); // forceLoad to ensure a full refresh
+        }
+        else
+        {
+            errorMessage = "Fehler: Gast-Benutzer konnte nicht angemeldet werden. Wurde die Datenbank geseedet?";
         }
     }
 
