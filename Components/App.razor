@@ -17,10 +17,13 @@
 </head>
 
 <body>
-    <Routes @rendermode="RenderModeForPage" />
+    <CascadingAuthenticationState>
+        <Routes @rendermode="RenderModeForPage" />
+    </CascadingAuthenticationState>
 
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="_content/BlazorApexCharts/blazor-apex-charts.js"></script>
 
 </body>
 

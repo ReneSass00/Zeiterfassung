@@ -3,57 +3,60 @@
 @using System.Security.Claims
 @using Zeiterfassung.Data
 
-@inject ZeiterfassungContext DbContext
+@inject IDbContextFactory<ZeiterfassungContext> DbContextFactory
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Neuen Zeiteintrag erstellen</MudText>
+        <MudText Typo="Typo.h6">Zeiteintrag bearbeiten & speichern</MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="_success" Class="mt-4">
-            <MudSelect T="int" @bind-Value="_timeEntry.ProjectId" For="@(() => _timeEntry.ProjectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
+            <MudSelect T="int" @bind-Value="_projectId" For="@(() => _projectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
                 @foreach (var project in _userProjects)
                 {
                     <MudSelectItem Value="@project.Id">@project.Name</MudSelectItem>
                 }
             </MudSelect>
-            <MudTextField @bind-Value="_timeEntry.Description" For="@(() => _timeEntry.Description)" Label="Beschreibung" Lines="3" Class="mt-4" />
-            <MudDatePicker @bind-Date="_startDate" Label="Startdatum" Required="true" Class="mt-4" />
-            <MudTimePicker @bind-Time="_startTime" Label="Startzeit" Required="true" />
-            <MudDatePicker @bind-Date="_endDate" Label="Enddatum" Required="true" Class="mt-4" />
-            <MudTimePicker @bind-Time="_endTime" Label="Endzeit" Required="true" />
+            <MudTextField @bind-Value="_description" Label="Beschreibung" Lines="3" Class="mt-4" />
+
+            @* KORREKTE BINDUNG: Separate Variablen für Datum und Zeit *@
+            <MudDatePicker Label="Startdatum" @bind-Date="_localStartDate" Class="mt-4" />
+            <MudTimePicker Label="Startzeit" @bind-Time="_localStartTime" />
+
+            <MudDatePicker Label="Enddatum" @bind-Date="_localEndDate" Class="mt-4" />
+            <MudTimePicker Label="Endzeit" @bind-Time="_localEndTime" />
         </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Abbrechen</MudButton>
-        <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Disabled="@(!_success)" OnClick="Submit">Speichern</MudButton>
+        <MudButton ButtonType="ButtonType.Submit" Color="MudBlazor.Color.Primary" Disabled="@(!_success)" OnClick="Submit">Speichern</MudButton>
     </DialogActions>
 </MudDialog>
 
-
 @code {
-    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = default!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
-    // --- NEUE PARAMETER FÜR DEN TIMER ---
     [Parameter] public int? PreselectedProjectId { get; set; }
-    [Parameter] public DateTime? PreselectedStartTime { get; set; }
-    [Parameter] public DateTime? PreselectedEndTime { get; set; }
-    // --- ENDE NEUE PARAMETER ---
+    [Parameter] public DateTime? PreselectedStartTime { get; set; } // Kommt in UTC an
+    [Parameter] public DateTime? PreselectedEndTime { get; set; }   // Kommt in UTC an
+    [Parameter] public string? PreselectedDescription { get; set; }
 
     private MudForm? _form;
     private bool _success;
 
-    private TimeEntry _timeEntry = new();
     private List<Project> _userProjects = new();
     private string? _userId;
 
-    // Hilfsvariablen für die MudBlazor Date/Time Picker
-    private DateTime? _startDate;
-    private TimeSpan? _startTime;
-    private DateTime? _endDate;
-    private TimeSpan? _endTime;
+    private int _projectId;
+    private string? _description;
+
+    // KORREKTE VARIABLEN FÜR DIE UI-BINDUNG
+    private DateTime? _localStartDate;
+    private TimeSpan? _localStartTime;
+    private DateTime? _localEndDate;
+    private TimeSpan? _localEndTime;
 
     protected override async Task OnInitializedAsync()
     {
@@ -63,26 +66,25 @@
 
         if (_userId is not null)
         {
-            _userProjects = await DbContext.Projects
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            _userProjects = await dbContext.Projects
                 .Where(p => p.OwnerId == _userId || p.ProjectUsers.Any(tm => tm.UserId == _userId))
                 .OrderBy(p => p.Name)
                 .AsNoTracking()
                 .ToListAsync();
         }
 
-        // --- NEUE LOGIK: VORAUSFÜLLEN DER DATEN ---
-        // Wenn Daten vom Timer übergeben wurden, nutze sie.
-        // Ansonsten nutze die Standardwerte (aktuelles Datum).
-        _timeEntry.ProjectId = PreselectedProjectId ?? 0;
+        _projectId = PreselectedProjectId ?? 0;
+        _description = PreselectedDescription ?? string.Empty;
 
-        var initialStartTime = PreselectedStartTime ?? DateTime.Now;
-        var initialEndTime = PreselectedEndTime ?? DateTime.Now;
+        // KORREKTE INITIALISIERUNG: Konvertiere UTC und teile in Datum & Zeit auf
+        var localStart = (PreselectedStartTime ?? DateTime.UtcNow).ToLocalTime();
+        _localStartDate = localStart.Date;
+        _localStartTime = localStart.TimeOfDay;
 
-        _startDate = initialStartTime.Date;
-        _startTime = initialStartTime.TimeOfDay;
-        _endDate = initialEndTime.Date;
-        _endTime = initialEndTime.TimeOfDay;
-        // --- ENDE NEUE LOGIK ---
+        var localEnd = (PreselectedEndTime ?? DateTime.UtcNow).ToLocalTime();
+        _localEndDate = localEnd.Date;
+        _localEndTime = localEnd.TimeOfDay;
     }
 
     private async Task Submit()
@@ -94,21 +96,32 @@
             return;
         }
 
-        // Kombiniere Datum und Zeit
-        if (_startDate.HasValue && _startTime.HasValue && _endDate.HasValue && _endTime.HasValue)
+        if (_localStartDate.HasValue && _localStartTime.HasValue && _localEndDate.HasValue && _localEndTime.HasValue)
         {
-            _timeEntry.StartTime = _startDate.Value.Add(_startTime.Value);
-            _timeEntry.EndTime = _endDate.Value.Add(_endTime.Value);
-            _timeEntry.UserId = _userId!;
+            // KORREKTE ZUSAMMENFÜGUNG: Kombiniere Datum und Zeit aus den UI-Variablen
+            DateTime combinedStart = _localStartDate.Value.Add(_localStartTime.Value);
+            DateTime combinedEnd = _localEndDate.Value.Add(_localEndTime.Value);
 
-            if (_timeEntry.Duration.TotalSeconds < 0)
+            if (combinedEnd < combinedStart)
             {
                 Snackbar.Add("Die Endzeit darf nicht vor der Startzeit liegen.", Severity.Error);
                 return;
             }
 
-            await DbContext.TimeEntries.AddAsync(_timeEntry);
-            await DbContext.SaveChangesAsync();
+            var newEntry = new TimeEntry
+                {
+                    UserId = _userId!,
+                    ProjectId = _projectId,
+                    Description = _description!,
+                    // Konvertiere die kombinierte lokale Zeit zurück nach UTC für die Datenbank
+                    StartTime = combinedStart.ToUniversalTime(),
+                    EndTime = combinedEnd.ToUniversalTime()
+                };
+
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            await dbContext.TimeEntries.AddAsync(newEntry);
+            await dbContext.SaveChangesAsync();
+
             Snackbar.Add("Zeiteintrag erfolgreich gespeichert.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }

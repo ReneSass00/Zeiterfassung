@@ -6,37 +6,35 @@ using Microsoft.AspNetCore.Identity;
 using Zeiterfassung.Components.Account;
 using Zeiterfassung.Data;
 using Zeiterfassung.Services;
+using Microsoft.Extensions.Hosting;
+using ApexCharts;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// MudBlazor-Dienste
 builder.Services.AddMudServices();
+builder.Services.AddApexCharts();
 
-//builder.Services.AddMudBlazorDialogService(); // Falls Dialoge verwendet werden.
-
-//builder.Services.AddDbContext<ZeiterfassungContext>(options =>
-//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+// DB Context als Factory registrieren (gut für Blazor Server)
 builder.Services.AddDbContextFactory<ZeiterfassungContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Identity und Authentifizierungsdienste (aufgeräumt, keine Duplikate)
 builder.Services.AddCascadingAuthenticationState();
-
 builder.Services.AddScoped<IdentityUserAccessor>();
-
 builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<TimerStateService>();
 
-
-builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-
 builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
     .AddIdentityCookies();
 
 builder.Services.AddIdentityCore<User>(options => options.SignIn.RequireConfirmedAccount = false)
@@ -44,13 +42,11 @@ builder.Services.AddIdentityCore<User>(options => options.SignIn.RequireConfirme
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
-
 builder.Services.AddRazorPages();
-
-
 builder.Services.AddSingleton<IEmailSender<User>, IdentityNoOpEmailSender>();
 
-
+// Antiforgery-Dienst hinzufügen
+builder.Services.AddAntiforgery();
 
 
 var app = builder.Build();
@@ -59,24 +55,30 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 
+app.MapStaticAssets();
+
+app.UseRouting();
+
+app.UseAuthentication();
+
+app.UseAuthorization();
 
 app.UseAntiforgery();
 
-app.MapStaticAssets();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapRazorPages();
+app.MapAdditionalIdentityEndpoints();
 
-app.MapAdditionalIdentityEndpoints();;
 
-// Create Sample and Guest Data if not exists already
+// Seed Data Logik (unverändert)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -94,9 +96,6 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "An error occurred while seeding the database.");
     }
 }
-
-
-// Create SampleUserData if not exists already
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

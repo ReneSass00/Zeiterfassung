@@ -1,4 +1,5 @@
 ﻿@page "/Account/Login"
+ 
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
@@ -18,7 +19,6 @@
         <section>
             <StatusMessage Message="@errorMessage" />
             <EditForm Model="Input" Method="post" OnValidSubmit="LoginUser" FormName="login">
-                <AntiforgeryToken />
                 <h4>Verwende einen lokalen Account zum Anmelden.</h4>
                 <hr />
                 <ValidationSummary class="text-danger" role="alert" />

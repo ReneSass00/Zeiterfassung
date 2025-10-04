@@ -14,6 +14,8 @@ public class ZeiterfassungContext : IdentityDbContext<User>
     public DbSet<Project> Projects { get; set; }
     public DbSet<TimeEntry> TimeEntries { get; set; }
     public DbSet<ProjectUser> ProjectUsers { get; set; }
+    public DbSet<QuickStartTemplate> QuickStartTemplates { get; set; }
+
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

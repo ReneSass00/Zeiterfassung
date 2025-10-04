@@ -1,19 +1,20 @@
 ﻿@inherits LayoutComponentBase
 
 <MudLayout>
-    <MudAppBar Elevation="1" Color="Color.Primary">
+    <MudAppBar Elevation="1" Color="MudBlazor.Color.Primary">
         <MudText Typo="Typo.h6" Class="ml-2">Zeiterfassung</MudText>
         <MudSpacer />
         <AuthorizeView>
             <Authorized>
                 <MudText Typo="Typo.body1" Class="mr-4">Hallo, @context.User.Identity?.Name!</MudText>
-                <form action="Identity/Account/Logout" method="post">
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Inherit">Logout</MudButton>
+                <form action="/Account/Logout" method="post">
+                    <AntiforgeryToken />
+                    <button type="submit" class="nav-link btn btn-link">Logout</button>
                 </form>
             </Authorized>
             <NotAuthorized>
-                <MudButton Href="Identity/Account/Register" Color="Color.Inherit" Variant="Variant.Text">Registrieren</MudButton>
-                <MudButton Href="Identity/Account/Login" Color="Color.Inherit" Variant="Variant.Text">Login</MudButton>
+                <MudButton Href="Identity/Account/Register" Color="MudBlazor.Color.Inherit" Variant="Variant.Text">Registrieren</MudButton>
+                <MudButton Href="Identity/Account/Login" Color="MudBlazor.Color.Inherit" Variant="Variant.Text">Login</MudButton>
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>

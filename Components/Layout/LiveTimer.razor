@@ -3,85 +3,151 @@
 @using Zeiterfassung.Components.Pages
 @using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Components;
-@using Zeiterfassung.Components.Dialogs;
-@using MudBlazor;
+@using Microsoft.AspNetCore.Components
+@using Zeiterfassung.Components.Dialogs
+@using MudBlazor
 @implements IDisposable
 
+@inject ISnackbar Snackbar
 @inject TimerStateService TimerState
 @inject IDialogService DialogService
-@inject ZeiterfassungContext DbContext
+@inject IDbContextFactory<ZeiterfassungContext> DbContextFactory
 @inject AuthenticationStateProvider AuthStateProvider
 
 <CascadingValue Value="this">
-    @if (TimerState.IsRunning)
+    @if (TimerState.IsRunning || TimerState.IsPaused)
     {
-        <div class="d-flex align-center gap-2" style="min-width: 250px;">
-            <MudText Color="Color.Inherit" Class="d-none d-sm-block">@TimerState.SelectedProjectName</MudText>
-            <MudText Color="Color.Inherit"><strong>@_elapsedTime</strong></MudText>
-            <MudTooltip Text="Timer stoppen und Eintrag erstellen">
-                <MudIconButton Icon="@Icons.Material.Filled.Stop" Color="Color.Error" OnClick="StopTimer" />
-            </MudTooltip>
+        @* Die Ansicht für einen aktiven (laufenden ODER pausierten) Timer *@
+        <div class="d-flex flex-column pa-4" style="height: 100%; min-height: 210px;">
+            <div>
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption">PROJEKT</MudText>
+                        <MudText Typo="Typo.body1" Class="font-weight-medium">@TimerState.SelectedProjectName</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption">AUFGABE</MudText>
+                        <MudText Typo="Typo.body1" Class="font-weight-medium" Style="overflow-wrap: break-word;">@TimerState.Description</MudText>
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+            </div>
+
+            <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center;">
+                <MudText Typo="Typo.h3" Align="MudBlazor.Align.Center" Style="font-family: monospace; font-weight: 500;">
+                    @_elapsedTime
+                </MudText>
+            </div>
+
+            @* GEÄNDERT: Dynamische Buttons für Pause, Fortsetzen und Stoppen *@
+            <MudStack Row="true" Justify="Justify.Center" Spacing="2" Class="mb-8">
+                @if (TimerState.IsRunning)
+                {
+                    <MudButton OnClick="PauseTimer" Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" Size="MudBlazor.Size.Large" StartIcon="@Icons.Material.Filled.Pause">
+                        Pause
+                    </MudButton>
+                }
+                @if (TimerState.IsPaused)
+                {
+                    <MudButton OnClick="ResumeTimer" Variant="Variant.Filled" Color="MudBlazor.Color.Success" Size="MudBlazor.Size.Large" StartIcon="@Icons.Material.Filled.PlayArrow">
+                        Fortsetzen
+                    </MudButton>
+                }
+                <MudButton OnClick="StopTimer" Variant="Variant.Filled" Color="MudBlazor.Color.Error" Size="MudBlazor.Size.Large" StartIcon="@Icons.Material.Filled.Stop">
+                    Stoppen
+                </MudButton>
+            </MudStack>
         </div>
     }
     else
     {
-        <div class="d-flex align-center gap-2" style="width: 300px;">
-            <MudSelect T="int?"
-                       @bind-Value="_selectedProjectId"
-                       Label="Projekt auswählen"
-                       Variant="Variant.Outlined"
-                       Dense="true"
-                       Margin="Margin.Dense"
-                       Class="white-text-select">
+        @* Die Ansicht für den gestoppten Timer bleibt unverändert *@
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_description" Label="Woran arbeitest du gerade?" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="int?" @bind-Value="_selectedProjectId" Label="Projekt auswählen" Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense">
                 @foreach (var project in _userProjects)
                 {
                     <MudSelectItem Value="@((int?)project.Id)">@project.Name</MudSelectItem>
                 }
             </MudSelect>
-            <MudTooltip Text="Timer starten">
-                <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Success" Disabled="@(_selectedProjectId == null)" OnClick="StartTimer" />
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudTooltip Text="Letzte Aktivität fortsetzen">
+                    <MudIconButton Icon="@Icons.Material.Filled.History" OnClick="ResumeLastTimer" />
+                </MudTooltip>
+                <MudButton OnClick="StartTimer" Disabled="@(_selectedProjectId == null || string.IsNullOrWhiteSpace(_description))" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow" Size="MudBlazor.Size.Large">
+                    Start
+                </MudButton>
+            </MudStack>
+        </MudStack>
+        <MudDivider Class="my-2" />
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.caption">Quick-Starts:</MudText>
+            <MudTooltip Text="Quick-Starts verwalten">
+                <MudIconButton Icon="@Icons.Material.Filled.Settings" Size="MudBlazor.Size.Small" OnClick="@(() => OpenQuickStartDialog())" />
             </MudTooltip>
-        </div>
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            @foreach (var template in _quickStarts)
+            {
+                <MudButton Variant="Variant.Outlined" Size="MudBlazor.Size.Small" OnClick="@(() => ApplyQuickStart(template))">@template.Name</MudButton>
+            }
+        </MudStack>
     }
 </CascadingValue>
 
-<style>
-    .white-text-select .mud-input-label,
-    .white-text-select .mud-input,
-    .white-text-select .mud-input-slot .mud-icon-root {
-        color: white !important;
-    }
+@code {
+    [Parameter] public EventCallback OnTimeEntryCreated { get; set; }
 
-    .white-text-select .mud-input-slot::before {
-        border-bottom-color: rgba(255,255,255,0.7) !important;
-    }
-</style>
-
-
-@code{
-    private List<Project> _userProjects = [];
+    private List<Project> _userProjects = new();
     private int? _selectedProjectId;
     private string _elapsedTime = "00:00:00";
     private System.Threading.Timer? _uiTimer;
     private string? _userId;
+    private string _description = "";
+    private List<QuickStartTemplate> _quickStarts = new();
 
     protected override async Task OnInitializedAsync()
     {
         TimerState.OnChange += OnTimerStateChanged;
-
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         _userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-
         if (_userId is not null)
         {
-            _userProjects = await DbContext.Projects
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            _userProjects = await dbContext.Projects
                 .Where(p => p.OwnerId == _userId || p.ProjectUsers.Any(tm => tm.UserId == _userId))
                 .OrderBy(p => p.Name)
                 .AsNoTracking()
                 .ToListAsync();
         }
+        await LoadQuickStartsAsync();
+    }
+
+    private void OnTimerStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            var elapsed = TimerState.GetElapsedTime();
+            _elapsedTime = elapsed.ToString(@"hh\:mm\:ss");
+
+            if (TimerState.IsRunning && _uiTimer == null)
+            {
+                _uiTimer = new System.Threading.Timer(_ =>
+                {
+                    elapsed = TimerState.GetElapsedTime();
+                    _elapsedTime = elapsed.ToString(@"hh\:mm\:ss");
+                    InvokeAsync(StateHasChanged);
+                }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            }
+            else if (!TimerState.IsRunning)
+            {
+                _uiTimer?.Dispose();
+                _uiTimer = null;
+            }
+
+            StateHasChanged();
+        });
     }
 
     private void StartTimer()
@@ -91,60 +157,89 @@
             var project = _userProjects.FirstOrDefault(p => p.Id == _selectedProjectId.Value);
             if (project != null)
             {
-                TimerState.StartTimer(project.Id, project.Name);
+                TimerState.StartTimer(project.Id, project.Name, _description);
             }
         }
     }
+
+    // NEUE METHODEN
+    private void PauseTimer() => TimerState.PauseTimer();
+    private void ResumeTimer() => TimerState.ResumeTimer();
 
     private async Task StopTimer()
     {
-        var (startTime, projectId) = TimerState.StopTimer();
-
+        var (startTime, endTime, projectId, description) = TimerState.StopTimer();
         if (startTime.HasValue && projectId.HasValue)
         {
             var parameters = new DialogParameters<CreateTimeEntryDialog>
-                {
-                    { x => x.PreselectedProjectId, projectId.Value },
-                    { x => x.PreselectedStartTime, startTime.Value },
-                    { x => x.PreselectedEndTime, DateTime.UtcNow }
-                };
-
+            {
+                { x => x.PreselectedProjectId, projectId.Value },
+                { x => x.PreselectedStartTime, startTime.Value },
+                { x => x.PreselectedEndTime, endTime.Value },
+                { x => x.PreselectedDescription, description }
+            };
             var dialog = await DialogService.ShowAsync<CreateTimeEntryDialog>("Zeiteintrag erstellen", parameters);
             var result = await dialog.Result;
-
             if (!result.Canceled)
             {
-                // Hier könntest du das Dashboard informieren, sich zu aktualisieren,
-                // aber ein Neuladen der Seite erledigt das auch.
+                await OnTimeEntryCreated.InvokeAsync();
             }
         }
     }
 
-    private void OnTimerStateChanged()
+    private async Task ResumeLastTimer()
     {
-        InvokeAsync(() =>
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var lastEntry = await dbContext.TimeEntries
+            .Where(te => te.UserId == _userId)
+            .OrderByDescending(te => te.EndTime)
+            .FirstOrDefaultAsync();
+        if (lastEntry != null)
         {
-            if (TimerState.IsRunning)
-            {
-                _uiTimer?.Dispose();
-                _uiTimer = new System.Threading.Timer(_ =>
-                {
-                    if (TimerState.StartTime.HasValue)
-                    {
-                        var elapsed = DateTime.UtcNow - TimerState.StartTime.Value;
-                        _elapsedTime = elapsed.ToString(@"hh\:mm\:ss");
-                        InvokeAsync(StateHasChanged);
-                    }
-                }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
-            }
-            else
-            {
-                _uiTimer?.Dispose();
-                _uiTimer = null;
-                _elapsedTime = "00:00:00";
-            }
+            _selectedProjectId = lastEntry.ProjectId;
+            _description = lastEntry.Description;
             StateHasChanged();
-        });
+        }
+        else
+        {
+            Snackbar.Add("Keine letzte Aktivität gefunden.", Severity.Info);
+        }
+    }
+
+    private async Task LoadQuickStartsAsync()
+    {
+        if (_userId is not null)
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            _quickStarts = await dbContext.QuickStartTemplates
+                .Where(q => q.UserId == _userId)
+                .OrderBy(q => q.Name)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+    }
+
+    private void ApplyQuickStart(QuickStartTemplate template)
+    {
+        _selectedProjectId = template.ProjectId;
+        _description = template.Description;
+        StartTimer();
+    }
+
+    private async Task OpenQuickStartDialog()
+    {
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = false,
+            };
+
+        var dialog = DialogService.Show<QuickStartConfigDialog>("Quick-Starts verwalten", options);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await LoadQuickStartsAsync();
+            StateHasChanged();
+        }
     }
 
     public void Dispose()

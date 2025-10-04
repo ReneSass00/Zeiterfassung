@@ -24,10 +24,10 @@
                 {
                     <MudListItem Icon="@Icons.Material.Filled.Person">
                         @member.User.UserName
-                        <MudChip Size="Size.Small" Color="Color.Primary" Class="ml-2">@member.Role</MudChip>
+                        <MudChip Size="MudBlazor.Size.Small" Color="MudBlazor.Color.Primary" Class="ml-2">@member.Role</MudChip>
                         @if (member.UserId != project.OwnerId) // Der Owner kann nicht entfernt werden
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveMember(member))" Class="ml-auto" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="MudBlazor.Size.Small" OnClick="@(() => RemoveMember(member))" Class="ml-auto" />
                         }
                     </MudListItem>
                 }
@@ -42,7 +42,7 @@
                                  ToStringFunc="@(u => u?.UserName)"
                                  Variant="Variant.Outlined"
                                  Class="flex-grow-1" />
-                <MudButton OnClick="AddMember" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(userToAdd is null)" Class="ml-2 align-self-center">Hinzufügen</MudButton>
+                <MudButton OnClick="AddMember" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Disabled="@(userToAdd is null)" Class="ml-2 align-self-center">Hinzufügen</MudButton>
             </div>
         }
     </DialogContent>
@@ -53,7 +53,7 @@
 
 @code {
     [CascadingParameter]
-    MudDialogInstance MudDialog { get; set; }
+    IMudDialogInstance MudDialog { get; set; }
 
     [Parameter]
     public int ProjectId { get; set; }

@@ -20,7 +20,7 @@
 <MudTable T="TimeEntry" ServerData="@ServerReloadEntries" Dense="true" Hover="true" @ref="table">
     <ToolBarContent>
         <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateTimeEntryDialog">Neuer Eintrag</MudButton>
+        <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" OnClick="OpenCreateTimeEntryDialog">Neuer Eintrag</MudButton>
     </ToolBarContent>
     <HeaderContent>
         <MudTh>Projekt</MudTh>
@@ -37,15 +37,15 @@
         <MudTd DataLabel="Ende">@context.EndTime.ToString("g")</MudTd>
         <MudTd DataLabel="Dauer">@((context.EndTime - context.StartTime).ToString(@"hh\:mm"))</MudTd>
         <MudTd DataLabel="Aktionen" Style="text-align:right">
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditTimeEntryDialog(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteTimeEntry(context))" Class="ml-2" />
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Size="MudBlazor.Size.Small" OnClick="@(() => OpenEditTimeEntryDialog(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="MudBlazor.Color.Error" Size="MudBlazor.Size.Small" OnClick="@(() => DeleteTimeEntry(context))" Class="ml-2" />
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
         <MudText>Keine Einträge gefunden.</MudText>
     </NoRecordsContent>
     <LoadingContent>
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        <MudProgressCircular Color="MudBlazor.Color.Primary" Indeterminate="true" />
     </LoadingContent>
 </MudTable>
 

@@ -1,0 +1,193 @@
+﻿@using Zeiterfassung.Data
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<ZeiterfassungContext> DbContextFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudDialog OnBackdropClick="CloseDialog">
+    <TitleContent>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Style="width: 100%;">
+            <MudText Typo="Typo.h6">Quick-Starts verwalten</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseDialog" Edge="Edge.End" />
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        @* VORHANDENE VORLAGEN AUFLISTEN *@
+        <MudSimpleTable Hover="true" Dense="true">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Projekt</th>
+                    <th style="width: 100px;">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var template in _templates)
+                {
+                    <tr>
+                        <td>@template.Name</td>
+                        <td>@template.Project.Name</td>
+                        <td>
+                            <MudStack Row="true" Spacing="0">
+                                @* NEU: Bearbeiten-Button *@
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="MudBlazor.Size.Small" OnClick="@(() => StartEdit(template))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="MudBlazor.Size.Small" OnClick="@(() => DeleteTemplate(template.Id))" />
+                            </MudStack>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+
+        <MudDivider Class="my-6" />
+
+        @* FORMULAR FÜR NEU/BEARBEITEN (ohne MudPaper) *@
+        <div>
+            @* NEU: Dynamischer Titel *@
+            <MudText Typo="Typo.h6" GutterBottom="true">@(_templateToEdit == null ? "Neue Vorlage erstellen" : "Vorlage bearbeiten")</MudText>
+
+            <MudTextField @bind-Value="_editableTemplate.Name" Label="Name (für Button)" For="@(() => _editableTemplate.Name)" />
+            <MudTextField @bind-Value="_editableTemplate.Description" Label="Vorgefüllte Beschreibung" For="@(() => _editableTemplate.Description)" Class="mt-3" />
+            <MudSelect T="int" @bind-Value="_editableTemplate.ProjectId" Label="Projekt" For="@(() => _editableTemplate.ProjectId)" Class="mt-3">
+                @foreach (var project in _userProjects)
+                {
+                    <MudSelectItem Value="@project.Id">@project.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        @if (_templateToEdit != null)
+        {
+            <MudButton OnClick="CancelEdit"
+                       Variant="Variant.Outlined" 
+                       Class="mr-auto">
+                Abbrechen
+            </MudButton>
+        }
+
+        <MudButton Color="MudBlazor.Color.Primary"
+                   OnClick="SaveAsync"
+                   Variant="Variant.Filled">
+            @(_templateToEdit == null ? "Neue Vorlage speichern" : "Änderungen speichern")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance DialogInstance { get; set; }
+
+    private List<QuickStartTemplate> _templates = new();
+    private List<Project> _userProjects = new();
+    private string _userId;
+    private QuickStartTemplate _editableTemplate = new();
+    private QuickStartTemplate? _templateToEdit;
+
+    // NEU: Ein Feld, das sich merkt, ob Änderungen gemacht wurden
+    private bool _changesMade = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        _userProjects = await dbContext.Projects
+            .Where(p => p.OwnerId == _userId || p.ProjectUsers.Any(tm => tm.UserId == _userId))
+            .OrderBy(p => p.Name)
+            .AsNoTracking()
+            .ToListAsync();
+
+        await LoadTemplates(dbContext);
+    }
+
+    private async Task LoadTemplates(ZeiterfassungContext dbContext)
+    {
+        _templates = await dbContext.QuickStartTemplates
+            .Where(q => q.UserId == _userId)
+            .Include(q => q.Project)
+            .OrderBy(q => q.Name)
+            .ToListAsync();
+    }
+
+    private void StartEdit(QuickStartTemplate template)
+    {
+        _templateToEdit = template;
+        _editableTemplate = new QuickStartTemplate
+            {
+                Id = template.Id,
+                Name = template.Name,
+                Description = template.Description,
+                ProjectId = template.ProjectId,
+                UserId = template.UserId
+            };
+    }
+
+    private void CancelEdit()
+    {
+        _templateToEdit = null;
+        _editableTemplate = new();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editableTemplate.Name) || _editableTemplate.ProjectId == 0)
+        {
+            Snackbar.Add("Name und Projekt sind erforderlich.", Severity.Warning);
+            return;
+        }
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
+        if (_templateToEdit == null)
+        {
+            _editableTemplate.UserId = _userId;
+            dbContext.QuickStartTemplates.Add(_editableTemplate);
+            Snackbar.Add("Vorlage gespeichert!", Severity.Success);
+        }
+        else
+        {
+            dbContext.QuickStartTemplates.Update(_editableTemplate);
+            Snackbar.Add("Vorlage aktualisiert!", Severity.Success);
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        _changesMade = true; // GEÄNDERT: Signal setzen, dass sich etwas getan hat
+        CancelEdit();
+        await LoadTemplates(dbContext);
+        StateHasChanged();
+    }
+
+    private async Task DeleteTemplate(int id)
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var template = await dbContext.QuickStartTemplates.FindAsync(id);
+        if (template != null)
+        {
+            dbContext.QuickStartTemplates.Remove(template);
+            await dbContext.SaveChangesAsync();
+            _changesMade = true; // GEÄNDERT: Signal setzen, dass sich etwas getan hat
+            await LoadTemplates(dbContext);
+            StateHasChanged();
+            Snackbar.Add("Vorlage gelöscht.", Severity.Info);
+        }
+    }
+
+    // GEÄNDERT: Diese Methode ersetzt die alte "CancelDialog"
+    void CloseDialog()
+    {
+        if (_changesMade)
+        {
+            // Schließe mit einem "OK"-Ergebnis, damit der LiveTimer das mitbekommt
+            DialogInstance.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            // Schließe wie bisher mit "Cancel"
+            DialogInstance.Cancel();
+        }
+    }
+}

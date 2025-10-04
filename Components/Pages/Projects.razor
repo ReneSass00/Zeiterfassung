@@ -21,7 +21,7 @@
 <MudTable T="Project" ServerData="@ServerReload" Dense="true" Hover="true" @ref="table">
     <ToolBarContent>
         <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateProjectDialog">Neues Projekt</MudButton>
+        <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" OnClick="OpenCreateProjectDialog">Neues Projekt</MudButton>
     </ToolBarContent>
     <HeaderContent>
         <MudTh>Name</MudTh>
@@ -36,13 +36,13 @@
         <MudTd DataLabel="Aktionen" Style="text-align:right">
             @if (context.OwnerId == currentUserId)
             {
-                <MudIconButton Icon="@Icons.Material.Filled.Group" Variant="Variant.Filled" Color="Color.Default" Size="Size.Small" OnClick="@(() => OpenManageMembersDialog(context.Id))" Title="Mitglieder verwalten" />
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditProjectDialog(context))" Class="ml-2" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteProject(context))" Class="ml-2" />
+                <MudIconButton Icon="@Icons.Material.Filled.Group" Variant="Variant.Filled" Color="MudBlazor.Color.Default" Size="MudBlazor.Size.Small" OnClick="@(() => OpenManageMembersDialog(context.Id))" Title="Mitglieder verwalten" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Size="MudBlazor.Size.Small" OnClick="@(() => OpenEditProjectDialog(context))" Class="ml-2" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Filled" Color="MudBlazor.Color.Error" Size="MudBlazor.Size.Small" OnClick="@(() => DeleteProject(context))" Class="ml-2" />
             }
             else
             {
-                <MudChip T="object" Size="Size.Small" Color="Color.Secondary">Mitglied</MudChip>
+                <MudChip T="object" Size="MudBlazor.Size.Small" Color="MudBlazor.Color.Secondary">Mitglied</MudChip>
             }
         </MudTd>
     </RowTemplate>
@@ -50,7 +50,7 @@
         <MudText>Keine Projekte gefunden. Erstelle dein erstes Projekt!</MudText>
     </NoRecordsContent>
     <LoadingContent>
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        <MudProgressCircular Color="MudBlazor.Color.Primary" Indeterminate="true" />
     </LoadingContent>
 </MudTable>
 
