@@ -243,7 +243,21 @@
 
     private ApexChartOptions<ChartDataPoint> donutChartOption = new()
         {
-            Colors = new() { "#7B68EE", "#10B981", "#FF6B6B", "#FFA500", "#48BB78" }
+            // Erweiterte Farbpalette auf 10 Farben
+            Colors = new()
+        {
+            "#7B68EE", // Your original (Medium Slate Blue)
+            "#10B981", // Your original (Emerald)
+            "#FF6B6B", // Your original (Salmon Red)
+            "#FFA500", // Your original (Orange)
+            "#48BB78", // Your original (Medium Spring Green)
+
+            "#00C2E0", // NEU: Bright Cyan (Gut für das Branding)
+            "#FBC43B", // NEU: Golden Yellow (Ergänzt Orange)
+            "#8D6E63", // NEU: Brown (Neutral, gut für z.B. Wartung)
+            "#E91E63", // NEU: Pink/Magenta (Kontrastreich)
+            "#9370DB"  // NEU: Medium Purple (Ergänzt das ursprüngliche Blau)
+        }
         };
     protected override async Task OnInitializedAsync()
     {
@@ -369,10 +383,10 @@
 
         // Lade die Chart-Daten mit dem neuen Datum
         _donutChartData = await LoadDonutChartDataAsync(fromDate);
-        
+
         if (_donutChart != null)
         {
-            _donutChart.UpdateSeriesAsync();
+            _donutChart.RenderAsync();
         }
 
     }

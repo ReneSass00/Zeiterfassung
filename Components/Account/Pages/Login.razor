@@ -41,15 +41,16 @@
                 <div>
                     <button type="submit" class="w-100 btn btn-lg btn-primary">Anmelden</button>
                 </div>
+                @* --- GAST-LOGIN-ABSCHNITT --- *@
+                <div class="divider text-center my-4">
+                    <span class="divider-text">Oder</span>
+                </div>
+
+                <button type="submit" name="action" value="Guest" class="w-100 btn btn-lg btn-secondary">Als Gast mit Testdaten fortfahren</button>
+                @* --- ENDE GAST-LOGIN --- *@
             </EditForm>
 
-            @* --- GAST-LOGIN-ABSCHNITT (ohne MudBlazor) --- *@
-            <div class="divider text-center my-4">
-                <span class="divider-text">Oder</span>
-            </div>
-
-            <button @onclick="LoginAsGuest" class="w-100 btn btn-lg btn-secondary">Als Gast mit Testdaten fortfahren</button>
-            @* --- ENDE GAST-LOGIN --- *@
+            
 
             <div class="d-flex flex-column align-items-center mt-3">
                 <p>
@@ -94,6 +95,10 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
+
+    [SupplyParameterFromForm(Name = "action")]
+    private string? FormAction { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         if (HttpMethods.IsGet(HttpContext.Request.Method))
@@ -105,6 +110,11 @@
 
     public async Task LoginUser()
     {
+        if (FormAction == "Guest")
+        {
+            await LoginAsGuest();
+            return; // Wir sind fertig, beenden die LoginUser-Methode
+        }
         // This doesn't count login failures towards account lockout
         // To enable password failures to trigger account lockout, set lockoutOnFailure: true
         var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
@@ -150,6 +160,13 @@
         }
     }
 
+    private Task MarkAsGuestAndSubmit()
+    {
+        Input.IsGuestLogin = true;
+        // Blazor löst nach der Statusänderung selbst den OnValidSubmit/OnSubmit aus
+        return Task.CompletedTask;
+    }
+
     private sealed class InputModel
     {
         [Required]
@@ -162,5 +179,8 @@
 
         [Display(Name = "Remember me?")]
         public bool RememberMe { get; set; }
+
+        public bool IsGuestLogin { get; set; }
+
     }
 }
