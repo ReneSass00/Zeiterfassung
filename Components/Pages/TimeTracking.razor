@@ -19,22 +19,32 @@
 
 <MudTable T="TimeEntry" ServerData="@ServerReloadEntries" Dense="true" Hover="true" @ref="table">
     <ToolBarContent>
+        <MudTextField T="string"
+                      @bind-Value="_searchString"
+                      Placeholder="Einträge durchsuchen..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      IconSize="MudBlazor.Size.Medium"
+                      Class="mt-0"
+                      Style="width: 300px;"
+                      DebounceInterval="500"
+                      OnDebounceIntervalElapsed="@(async () => await table.ReloadServerData())" />
         <MudSpacer />
         <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" OnClick="OpenCreateTimeEntryDialog">Neuer Eintrag</MudButton>
     </ToolBarContent>
     <HeaderContent>
-        <MudTh>Projekt</MudTh>
-        <MudTh>Beschreibung</MudTh>
-        <MudTh>Start</MudTh>
-        <MudTh>Ende</MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Projekt" T="TimeEntry">Projekt</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Beschreibung" T="TimeEntry">Beschreibung</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Start" T="TimeEntry" InitialDirection="SortDirection.Descending">Start</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Ende" T="TimeEntry">Ende</MudTableSortLabel></MudTh>
         <MudTh>Dauer</MudTh>
         <MudTh Style="text-align:right">Aktionen</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Projekt">@context.Project.Name</MudTd>
         <MudTd DataLabel="Beschreibung">@context.Description</MudTd>
-        <MudTd DataLabel="Start">@context.StartTime.ToString("g")</MudTd>
-        <MudTd DataLabel="Ende">@context.EndTime.ToString("g")</MudTd>
+        <MudTd DataLabel="Start">@context.StartTime.ToLocalTime().ToString("g")</MudTd>
+        <MudTd DataLabel="Ende">@context.EndTime.ToLocalTime().ToString("g")</MudTd>
         <MudTd DataLabel="Dauer">@((context.EndTime - context.StartTime).ToString(@"hh\:mm"))</MudTd>
         <MudTd DataLabel="Aktionen" Style="text-align:right">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Size="MudBlazor.Size.Small" OnClick="@(() => OpenEditTimeEntryDialog(context))" />
@@ -47,11 +57,17 @@
     <LoadingContent>
         <MudProgressCircular Color="MudBlazor.Color.Primary" Indeterminate="true" />
     </LoadingContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[]{10, 25, 50, 100}" />
+    </PagerContent>
 </MudTable>
 
 @code {
-    private MudTable<TimeEntry> table;
+    private MudTable<TimeEntry> table = default!;
     private string? currentUserId;
+    private string _searchString = ""; 
+
+    DialogOptions options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,13 +82,41 @@
             await using var context = await DbFactory.CreateDbContextAsync(token);
             var query = context.TimeEntries
                                .Include(te => te.Project)
-                               .Where(te => te.UserId == currentUserId);
+                               .Where(te => te.UserId == currentUserId)
+                               .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                query = query.Where(te =>
+                    te.Description.Contains(_searchString) ||
+                    te.Project.Name.Contains(_searchString)
+                );
+            }
+
+            switch (state.SortLabel)
+            {
+                case "Projekt":
+                    query = query.OrderByDirection(state.SortDirection, p => p.Project.Name);
+                    break;
+                case "Beschreibung":
+                    query = query.OrderByDirection(state.SortDirection, p => p.Description);
+                    break;
+                case "Start":
+                    query = query.OrderByDirection(state.SortDirection, p => p.StartTime);
+                    break;
+                case "Ende":
+                    query = query.OrderByDirection(state.SortDirection, p => p.EndTime);
+                    break;
+                default:
+                    query = query.OrderByDescending(te => te.StartTime);
+                    break;
+            }
 
             var totalItems = await query.CountAsync(token);
-            var items = await query.OrderByDescending(te => te.StartTime)
-                                   .Skip(state.Page * state.PageSize)
+            var items = await query.Skip(state.Page * state.PageSize)
                                    .Take(state.PageSize)
                                    .ToListAsync(token);
+
             return new TableData<TimeEntry>() { TotalItems = totalItems, Items = items };
         }
         catch (Exception ex)
@@ -81,59 +125,27 @@
             return new TableData<TimeEntry>() { TotalItems = 0, Items = new List<TimeEntry>() };
         }
     }
-
     private async Task OpenCreateTimeEntryDialog()
     {
-        await using var context = await DbFactory.CreateDbContextAsync();
-        var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
-
-        //var parameters = new DialogParameters<CreateTimeEntryDialog> { { x => x.UserProjects, userProjects } };
-        var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag");
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Neuer Zeiteintrag", options);
         var result = await dialog.Result;
-
-        if (!result.Canceled && result.Data is TimeEntry newTimeEntry)
+        if (!result.Canceled)
         {
-            newTimeEntry.UserId = currentUserId!;
-            context.TimeEntries.Add(newTimeEntry);
-            await context.SaveChangesAsync();
-            Snackbar.Add("Eintrag erfolgreich erstellt.", Severity.Success);
             await table.ReloadServerData();
         }
     }
 
     private async Task OpenEditTimeEntryDialog(TimeEntry entryToEdit)
     {
-        await using var context = await DbFactory.CreateDbContextAsync();
-        var userProjects = await context.Projects.Where(p => p.OwnerId == currentUserId).OrderBy(p => p.Name).ToListAsync();
-
-        // var parameters = new DialogParameters<CreateTimeEntryDialog>
-        // {
-        //     { x => x.UserProjects, userProjects },
-        //     { x => x.EntryToEdit, entryToEdit }
-        // };
-        var dialog = DialogService.Show<CreateTimeEntryDialog>("Zeiteintrag bearbeiten");
+        var parameters = new DialogParameters<CreateTimeEntryDialog>
+        {
+            { x => x.EntryToEdit, entryToEdit }
+        };
+        var dialog = DialogService.Show<CreateTimeEntryDialog>("Zeiteintrag bearbeiten", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is TimeEntry updatedEntry)
+        if (!result.Canceled)
         {
-            // === KORRIGIERTER TEIL ===
-            var entryFromDb = await context.TimeEntries.FindAsync(updatedEntry.Id);
-            if (entryFromDb is not null)
-            {
-                entryFromDb.ProjectId = updatedEntry.ProjectId;
-                entryFromDb.Description = updatedEntry.Description;
-                entryFromDb.StartTime = updatedEntry.StartTime;
-                entryFromDb.EndTime = updatedEntry.EndTime;
-
-                await context.SaveChangesAsync();
-                Snackbar.Add("Eintrag erfolgreich aktualisiert.", Severity.Success);
-            }
-            else
-            {
-                Snackbar.Add("Fehler: Eintrag konnte nicht in der Datenbank gefunden werden.", Severity.Error);
-            }
-            // === ENDE KORRIGIERTER TEIL ===
-
             await table.ReloadServerData();
         }
     }

@@ -22,12 +22,12 @@
             <div>
                 <MudGrid Spacing="2">
                     <MudItem xs="6">
-                        <MudText Typo="Typo.caption">PROJEKT</MudText>
-                        <MudText Typo="Typo.body1" Class="font-weight-medium">@TimerState.SelectedProjectName</MudText>
+                        <MudText Typo="Typo.caption" Style="font-weight: bold">PROJEKT</MudText>
+                        <MudText Typo="Typo.body2" Class="font-weight-medium">@TimerState.SelectedProjectName</MudText>
                     </MudItem>
                     <MudItem xs="6">
-                        <MudText Typo="Typo.caption">AUFGABE</MudText>
-                        <MudText Typo="Typo.body1" Class="font-weight-medium" Style="overflow-wrap: break-word;">@TimerState.Description</MudText>
+                        <MudText Typo="Typo.caption" Style="font-weight: bold">AUFGABE</MudText>
+                        <MudText Typo="Typo.body2" Class="font-weight-medium" Style="overflow-wrap: break-word;">@TimerState.Description</MudText>
                     </MudItem>
                 </MudGrid>
                 <MudDivider Class="my-4" />
@@ -162,7 +162,6 @@
         }
     }
 
-    // NEUE METHODEN
     private void PauseTimer() => TimerState.PauseTimer();
     private void ResumeTimer() => TimerState.ResumeTimer();
 
@@ -178,7 +177,14 @@
                 { x => x.PreselectedEndTime, endTime.Value },
                 { x => x.PreselectedDescription, description }
             };
-            var dialog = await DialogService.ShowAsync<CreateTimeEntryDialog>("Zeiteintrag erstellen", parameters);
+
+            var options = new DialogOptions
+                {
+                    MaxWidth = MaxWidth.Small, 
+                    FullWidth = true           
+                };
+
+            var dialog = await DialogService.ShowAsync<CreateTimeEntryDialog>("Zeiteintrag erstellen", parameters, options);
             var result = await dialog.Result;
             if (!result.Canceled)
             {

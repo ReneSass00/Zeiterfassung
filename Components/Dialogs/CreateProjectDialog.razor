@@ -9,7 +9,7 @@
     </TitleContent>
     <DialogContent>
         <MudForm @ref="form" @bind-IsValid="@success" Model="projectModel">
-            <MudTextField @bind-Value="projectModel.Name"
+            <MudTextField @ref="_projectNameField" @bind-Value="projectModel.Name"
                           Label="Projektname"
                           Required="true"
                           RequiredError="Bitte geben Sie einen Namen an."
@@ -35,6 +35,8 @@
     [Parameter]
     public Project? ProjectToEdit { get; set; }
 
+    private MudTextField<string> _projectNameField = default!;
+
     private MudForm form;
     private bool success;
     private Project projectModel = new();
@@ -47,6 +49,16 @@
             // Wenn ein Projekt zum Bearbeiten übergeben wurde, füllen wir das Formular
             DialogTitle = "Projekt bearbeiten";
             projectModel = ProjectToEdit;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // set focus to projectNameField
+            await Task.Delay(100);
+            await _projectNameField.FocusAsync();
         }
     }
 

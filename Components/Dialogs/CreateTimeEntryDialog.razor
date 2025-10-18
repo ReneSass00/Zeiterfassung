@@ -9,24 +9,26 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Zeiteintrag bearbeiten & speichern</MudText>
+        <MudText Typo="Typo.h6">@_dialogTitle</MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="_success" Class="mt-4">
-            <MudSelect T="int" @bind-Value="_projectId" For="@(() => _projectId)" Label="Projekt" Required="true" RequiredError="Bitte ein Projekt auswählen.">
+            <MudSelect T="int?" @bind-Value="_selectedProjectIdProxy"
+                       Label="Projekt*"
+                       Required="true"
+                       Validation="@(new Func<int?, string?>(v => _projectId == 0 ? "Bitte ein Projekt auswählen." : null))">
                 @foreach (var project in _userProjects)
                 {
-                    <MudSelectItem Value="@project.Id">@project.Name</MudSelectItem>
+                    <MudSelectItem Value="@((int?)project.Id)">@project.Name</MudSelectItem>
                 }
             </MudSelect>
             <MudTextField @bind-Value="_description" Label="Beschreibung" Lines="3" Class="mt-4" />
 
-            @* KORREKTE BINDUNG: Separate Variablen für Datum und Zeit *@
-            <MudDatePicker Label="Startdatum" @bind-Date="_localStartDate" Class="mt-4" />
-            <MudTimePicker Label="Startzeit" @bind-Time="_localStartTime" />
+            <MudDatePicker Label="Startdatum" @bind-Date="_localStartDate" Class="mt-4" Required="true" />
+            <MudTimePicker Label="Startzeit" @bind-Time="_localStartTime" Editable="true" Required="true" />
 
-            <MudDatePicker Label="Enddatum" @bind-Date="_localEndDate" Class="mt-4" />
-            <MudTimePicker Label="Endzeit" @bind-Time="_localEndTime" />
+            <MudDatePicker Label="Enddatum" @bind-Date="_localEndDate" Class="mt-4" Required="true" />
+            <MudTimePicker Label="Endzeit" @bind-Time="_localEndTime" Editable="true" Required="true" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -38,21 +40,27 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
+    [Parameter] public TimeEntry? EntryToEdit { get; set; }
     [Parameter] public int? PreselectedProjectId { get; set; }
-    [Parameter] public DateTime? PreselectedStartTime { get; set; } // Kommt in UTC an
-    [Parameter] public DateTime? PreselectedEndTime { get; set; }   // Kommt in UTC an
+    [Parameter] public DateTime? PreselectedStartTime { get; set; }
+    [Parameter] public DateTime? PreselectedEndTime { get; set; }
     [Parameter] public string? PreselectedDescription { get; set; }
 
     private MudForm? _form;
     private bool _success;
+    private string _dialogTitle = "Neuer Zeiteintrag";
 
     private List<Project> _userProjects = new();
     private string? _userId;
-
     private int _projectId;
+
+    private int? _selectedProjectIdProxy
+    {
+        get => _projectId == 0 ? null : _projectId;
+        set => _projectId = value ?? 0;
+    }
     private string? _description;
 
-    // KORREKTE VARIABLEN FÜR DIE UI-BINDUNG
     private DateTime? _localStartDate;
     private TimeSpan? _localStartTime;
     private DateTime? _localEndDate;
@@ -74,18 +82,38 @@
                 .ToListAsync();
         }
 
-        _projectId = PreselectedProjectId ?? 0;
-        _description = PreselectedDescription ?? string.Empty;
+        if (EntryToEdit is not null)
+        {
+            // Wir sind im Bearbeiten-Modus
+            _dialogTitle = "Zeiteintrag bearbeiten";
+            _projectId = EntryToEdit.ProjectId;
+            _description = EntryToEdit.Description;
 
-        // KORREKTE INITIALISIERUNG: Konvertiere UTC und teile in Datum & Zeit auf
-        var localStart = (PreselectedStartTime ?? DateTime.UtcNow).ToLocalTime();
-        _localStartDate = localStart.Date;
-        _localStartTime = localStart.TimeOfDay;
+            var localStart = EntryToEdit.StartTime.ToLocalTime();
+            _localStartDate = localStart.Date;
+            _localStartTime = localStart.TimeOfDay;
 
-        var localEnd = (PreselectedEndTime ?? DateTime.UtcNow).ToLocalTime();
-        _localEndDate = localEnd.Date;
-        _localEndTime = localEnd.TimeOfDay;
+            var localEnd = EntryToEdit.EndTime.ToLocalTime();
+            _localEndDate = localEnd.Date;
+            _localEndTime = localEnd.TimeOfDay;
+        }
+        else
+        {
+            // Wir sind im Erstellen-Modus (z.B. nach Timer-Stop)
+            _dialogTitle = "Zeiteintrag erstellen";
+            _projectId = PreselectedProjectId ?? 0;
+            _description = PreselectedDescription ?? string.Empty;
+
+            var localStart = (PreselectedStartTime ?? DateTime.UtcNow).ToLocalTime();
+            _localStartDate = localStart.Date;
+            _localStartTime = localStart.TimeOfDay;
+
+            var localEnd = (PreselectedEndTime ?? DateTime.UtcNow).ToLocalTime();
+            _localEndDate = localEnd.Date;
+            _localEndTime = localEnd.TimeOfDay;
+        }
     }
+
 
     private async Task Submit()
     {
@@ -98,7 +126,6 @@
 
         if (_localStartDate.HasValue && _localStartTime.HasValue && _localEndDate.HasValue && _localEndTime.HasValue)
         {
-            // KORREKTE ZUSAMMENFÜGUNG: Kombiniere Datum und Zeit aus den UI-Variablen
             DateTime combinedStart = _localStartDate.Value.Add(_localStartTime.Value);
             DateTime combinedEnd = _localEndDate.Value.Add(_localEndTime.Value);
 
@@ -108,26 +135,38 @@
                 return;
             }
 
-            var newEntry = new TimeEntry
-                {
-                    UserId = _userId!,
-                    ProjectId = _projectId,
-                    Description = _description!,
-                    // Konvertiere die kombinierte lokale Zeit zurück nach UTC für die Datenbank
-                    StartTime = combinedStart.ToUniversalTime(),
-                    EndTime = combinedEnd.ToUniversalTime()
-                };
-
             await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-            await dbContext.TimeEntries.AddAsync(newEntry);
-            await dbContext.SaveChangesAsync();
 
-            Snackbar.Add("Zeiteintrag erfolgreich gespeichert.", Severity.Success);
+            if (EntryToEdit is not null)
+            {
+                var entryFromDb = await dbContext.TimeEntries.FindAsync(EntryToEdit.Id);
+                if (entryFromDb is null)
+                {
+                    Snackbar.Add("Fehler: Eintrag nicht gefunden.", Severity.Error);
+                    return;
+                }
+                entryFromDb.ProjectId = _projectId;
+                entryFromDb.Description = _description ?? string.Empty;
+                entryFromDb.StartTime = combinedStart.ToUniversalTime();
+                entryFromDb.EndTime = combinedEnd.ToUniversalTime();
+                Snackbar.Add("Zeiteintrag erfolgreich aktualisiert.", Severity.Success);
+            }
+            else
+            {
+                var newEntry = new TimeEntry
+                    {
+                        UserId = _userId!,
+                        ProjectId = _projectId,
+                        Description = _description ?? string.Empty,
+                        StartTime = combinedStart.ToUniversalTime(),
+                        EndTime = combinedEnd.ToUniversalTime()
+                    };
+                await dbContext.TimeEntries.AddAsync(newEntry);
+                Snackbar.Add("Zeiteintrag erfolgreich gespeichert.", Severity.Success);
+            }
+
+            await dbContext.SaveChangesAsync();
             MudDialog.Close(DialogResult.Ok(true));
-        }
-        else
-        {
-            Snackbar.Add("Ungültiges Datum oder Uhrzeit.", Severity.Error);
         }
     }
 

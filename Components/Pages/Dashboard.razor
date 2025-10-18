@@ -103,7 +103,10 @@
         @* LINKE SPALTE: LIVE-TIMER *@
         <MudItem xs="12" lg="4">
             <MudPaper Elevation="2" Class="pa-4 card-hover-effect-subtle" Height="100%">
-                <MudText Typo="Typo.h6" GutterBottom="true">Live-Zeiterfassung</MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.AvTimer" Class="mr-2" Color="MudBlazor.Color.Primary" />
+                    <MudText Typo="Typo.h6">Live-Zeiterfassung</MudText>
+                </MudStack>
                 <LiveTimer OnTimeEntryCreated="LoadAllDashboardData" />
             </MudPaper>
         </MudItem>
@@ -111,10 +114,12 @@
         <MudItem xs="12" lg="8">
             <MudGrid Spacing="4">
                 <MudItem xs="12" md="6">
-                    <MudPaper Class="pa-4 card-hover-effect-subtle" Height="100%">
-                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                    <MudPaper Class="pa-4 card-hover-effect-subtle">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.BarChart" Class="mr-2" Color="MudBlazor.Color.Primary" />
                             <MudText Typo="Typo.h6">Zeitverteilung</MudText>
-                            <MudMenu Label="@_selectedDateRangeLabel" Dense="true" Variant="Variant.Filled" Color="MudBlazor.Color.Primary" EndIcon="@Icons.Material.Filled.ArrowDropDown" Size="MudBlazor.Size.Small">
+                            <MudSpacer />
+                            <MudMenu Label="@_selectedDateRangeLabel" Dense="true" Variant="Variant.Filled" Color="MudBlazor.Color.Secondary" EndIcon="@Icons.Material.Filled.ArrowDropDown" Size="MudBlazor.Size.Small">
                                 <MudMenuItem OnClick="@(() => OnDateRangeChangedAsync(DateRangeOptions.ThisMonth))">Dieser Monat</MudMenuItem>
                                 <MudMenuItem OnClick="@(() => OnDateRangeChangedAsync(DateRangeOptions.LastMonth))">Letzter Monat</MudMenuItem>
                                 <MudMenuItem OnClick="@(() => OnDateRangeChangedAsync(DateRangeOptions.Last90Days))">Letzte 90 Tage</MudMenuItem>
@@ -122,17 +127,15 @@
                                 <MudMenuItem OnClick="@(() => OnDateRangeChangedAsync(DateRangeOptions.AllTime))">Gesamt</MudMenuItem>
                             </MudMenu>
                         </MudStack>
-                        @if (_donutChartData.Any())
+                        @if (_projectDistributionData.Any())
                         {
-
-
-                            <ApexChart @ref="_donutChart" TItem="ChartDataPoint" Options="donutChartOption">
+                            <ApexChart @key="_projectDistributionChartKey" @ref="_projectDistributionChart" TItem="ChartDataPoint" Options="_projectDistributionChartOptions">
                                 <ApexPointSeries TItem="ChartDataPoint"
-                                                 Items="_donutChartData"
-                                                 SeriesType="SeriesType.Donut"
-                                                 Name="Stunden"
-                                                 XValue="e => e.X"
-                                                 YValue="e => e.Y" />
+                                Items="_projectDistributionData"
+                                SeriesType="SeriesType.Bar"
+                                Name="Stunden"
+                                XValue="e => e.X"
+                                YValue="e => e.Y" />
                             </ApexChart>
                         }
                         else
@@ -143,19 +146,20 @@
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudPaper Class="pa-4 card-hover-effect-subtle" Height="100%">
-                        <MudText Typo="Typo.h6" GutterBottom="true">Stunden pro Tag (Letzte 7 Tage)</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.BarChart" Class="mr-2" Color="MudBlazor.Color.Primary" />
+                            <MudText Typo="Typo.h6">Stunden pro Tag (Letzte 7 Tage)</MudText>
+                        </MudStack>
                         @if (_barChartData.Any())
                         {
-                            <ApexChart TItem="ChartDataPoint" Height="325">
+                            <ApexChart TItem="ChartDataPoint" Options="_barChartOptions">
                                 <ApexPointSeries TItem="ChartDataPoint"
-                                                 Items="_barChartData"
-                                                 Name="Erfasste Stunden"
-                                                 SeriesType="SeriesType.Bar"
-                                                 Color="#7B68EE"
-                                                 XValue="e => e.X"
-                                                 YValue="e => e.Y" />
-
-
+                                Items="_barChartData"
+                                Name="Erfasste Stunden"
+                                SeriesType="SeriesType.Bar"
+                                Color="#7B68EE"
+                                XValue="e => e.X"
+                                YValue="e => e.Y" />
                             </ApexChart>
 
                         }
@@ -171,7 +175,10 @@
 
     @* --- REIHE 3: LETZTE AKTIVITÄTEN --- *@
     <MudPaper Class="pa-4 mt-6 card-hover-effect-subtle">
-        <MudText Typo="Typo.h5" GutterBottom="true">Letzte Aktivitäten</MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" Color="MudBlazor.Color.Primary" />
+            <MudText Typo="Typo.h5">Letzte Aktivitäten</MudText>
+        </MudStack>
         <MudList T="TimeEntry">
             @if (!_recentActivities.Any())
             {
@@ -207,12 +214,11 @@
     }
 
     private ApexChart<ChartDataPoint>? _donutChart;
-    private List<ChartDataPoint> _donutChartData = [];
-    private string[] _donutChartLabels = [];
-
+    private ApexChart<ChartDataPoint>? _projectDistributionChart;
+    private List<ChartDataPoint> _projectDistributionData = [];
+    private Guid _projectDistributionChartKey = Guid.NewGuid(); 
     private List<ChartDataPoint> _barChartData = new();
     private decimal _yAxisMax = 8;
-
     private ClaimsPrincipal? _user;
     private string? _userId;
 
@@ -228,49 +234,66 @@
     private List<TimeEntry> _recentActivities = new();
 
     private string _selectedDateRangeLabel = "Dieser Monat";
-    private ChartOptions _chartOptions = new()
+
+    private ApexChartOptions<ChartDataPoint> _barChartOptions = new()
         {
-            ChartPalette = new[] { "#7B68EE", "#10B981", "#FF6B6B", "#FFA500", "#48BB78" },
-            YAxisLines = true,
-            YAxisFormat = "0h",
-            LineStrokeWidth = 50,
-            ShowToolTips = true,
-
-
-            // NEU: Dickere & abgerundete Balken
+            Chart = new Chart
+            {
+                Toolbar = new Toolbar { Show = false }
+            },
+            PlotOptions = new PlotOptions
+            {
+                Bar = new PlotOptionsBar
+                {
+                    //round corners
+                    BorderRadius = 8, 
+                    ColumnWidth = "60%"
+                }
+            },
+            Xaxis = new XAxis
+            {
+                Labels = new XAxisLabels { Style = new AxisLabelStyle { CssClass = "apexcharts-xaxis-label" } }
+            },
+            Yaxis = new List<YAxis>
+            {
+                new YAxis
+                {
+                    Labels = new YAxisLabels
+                    {
+                        Formatter = "(value) => { return value.toFixed(0) + 'h'; }"
+                    }
+                }
+            }
         };
 
-
-    private ApexChartOptions<ChartDataPoint> donutChartOption = new()
+    private ApexChartOptions<ChartDataPoint> _projectDistributionChartOptions = new()
         {
-            // Erweiterte Farbpalette auf 10 Farben
-            Colors = new()
-        {
-            "#7B68EE", // Your original (Medium Slate Blue)
-            "#10B981", // Your original (Emerald)
-            "#FF6B6B", // Your original (Salmon Red)
-            "#FFA500", // Your original (Orange)
-            "#48BB78", // Your original (Medium Spring Green)
-
-            "#00C2E0", // NEU: Bright Cyan (Gut für das Branding)
-            "#FBC43B", // NEU: Golden Yellow (Ergänzt Orange)
-            "#8D6E63", // NEU: Brown (Neutral, gut für z.B. Wartung)
-            "#E91E63", // NEU: Pink/Magenta (Kontrastreich)
-            "#9370DB"  // NEU: Medium Purple (Ergänzt das ursprüngliche Blau)
-        }
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            PlotOptions = new PlotOptions
+            {
+                Bar = new PlotOptionsBar
+                {
+                    Horizontal = true, 
+                    BorderRadius = 4,
+                    DataLabels = new PlotOptionsBarDataLabels { Position = BarDataLabelPosition.Top }
+                }
+            },
+            Colors = new() { "#7B68EE" },
+            Xaxis = new XAxis
+            {
+                Labels = new XAxisLabels { Formatter = "(value) => { return value.toFixed(1) + 'h'; }" }
+            },
+            Tooltip = new Tooltip { Y = new TooltipY { Title = new TooltipYTitle { Formatter = "(seriesName) => \"Stunden\"" } } }
         };
+
     protected override async Task OnInitializedAsync()
     {
-
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _user = authState.User;
         _userId = _user.FindFirstValue(ClaimTypes.NameIdentifier);
-        _chartOptions.LineStrokeWidth = 3;
 
-        // Fasse alle Lade-Aufrufe zusammen
         await LoadAllDashboardData();
     }
-
 
     private async Task LoadAllDashboardData()
     {
@@ -284,67 +307,58 @@
     private async Task LoadRecentActivitiesAsync()
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-
-        if (_userId is null)
-        {
-            return;
-        }
+        if (_userId is null) return;
 
         _recentActivities = await dbContext.TimeEntries
             .Where(te => te.UserId == _userId)
-            .OrderByDescending(te => te.EndTime) // Die neuesten zuerst
-            .Take(5) // Nimm die letzten 5 Einträge
-            .Include(te => te.Project) // Lade die zugehörigen Projekt-Daten mit
+            .OrderByDescending(te => te.EndTime)
+            .Take(5)
+            .Include(te => te.Project)
             .ToListAsync();
     }
 
     private async Task LoadDashboardMetricsAsync()
     {
-
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-
-
-        if (_userId is null)
-        {
-            return;
-        }
+        if (_userId is null) return;
 
         var today = DateTime.UtcNow.Date;
         var yesterday = today.AddDays(-1);
         var startOfMonth = new DateTime(today.Year, today.Month, 1);
         var startOfLast30Days = today.AddDays(-30);
+
         var entries = await dbContext.TimeEntries
             .Where(te => te.UserId == _userId && te.StartTime >= startOfLast30Days)
             .Select(te => new { te.StartTime, te.EndTime })
             .ToListAsync();
-        // 1. Heutige Zeit & Vergleich
+
         _todaysHours = entries
             .Where(te => te.StartTime.Date == today)
             .Sum(te => (te.EndTime - te.StartTime).TotalHours);
+
         var yesterdayHours = entries
             .Where(te => te.StartTime.Date == yesterday)
             .Sum(te => (te.EndTime - te.StartTime).TotalHours);
+
         if (yesterdayHours > 0)
         {
             _todayVsYesterdayDiff = ((_todaysHours / yesterdayHours) - 1) * 100;
             _isTodayBetter = _todaysHours >= yesterdayHours;
         }
 
-        // 2. Wochenziel
         var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
         var entriesForWeek = await dbContext.TimeEntries
             .Where(te => te.UserId == _userId && te.StartTime >= startOfWeek)
             .ToListAsync();
         _currentWeekHours = entriesForWeek.Sum(te => (te.EndTime - te.StartTime).TotalHours);
-
         _weeklyProgress = (_currentWeekHours / _weeklyGoalHours) * 100;
-        // 3. Aktive Tage
+
         _activeDaysInMonth = await dbContext.TimeEntries
             .Where(te => te.UserId == _userId && te.StartTime >= startOfMonth)
             .Select(te => te.StartTime.Date)
             .Distinct()
             .CountAsync();
-        // 4. Ø Stunden / Tag
+
         var totalHoursLast30Days = entries.Sum(te => (te.EndTime - te.StartTime).TotalHours);
         var activeDaysLast30Days = entries.Select(te => te.StartTime.Date).Distinct().Count();
         _avgHoursPerDay = activeDaysLast30Days > 0 ? totalHoursLast30Days / activeDaysLast30Days : 0;
@@ -376,23 +390,18 @@
                 break;
             case DateRangeOptions.AllTime:
             default:
-                fromDate = DateTime.MinValue; // Nimm alle Einträge
+                fromDate = DateTime.MinValue;
                 _selectedDateRangeLabel = "Gesamt";
                 break;
         }
 
-        // Lade die Chart-Daten mit dem neuen Datum
-        _donutChartData = await LoadDonutChartDataAsync(fromDate);
-
-        if (_donutChart != null)
-        {
-            _donutChart.RenderAsync();
-        }
+        _projectDistributionData = await LoadProjectDistributionDataAsync(fromDate);
+        _projectDistributionChartKey = Guid.NewGuid();
+        StateHasChanged();
 
     }
 
-    // GEÄNDERT: Gibt jetzt die neue Datenliste zurück
-    private async Task<List<ChartDataPoint>> LoadDonutChartDataAsync(DateTime fromDate)
+    private async Task<List<ChartDataPoint>> LoadProjectDistributionDataAsync(DateTime fromDate)
     {
         if (_userId is null) return new List<ChartDataPoint>();
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
@@ -405,10 +414,10 @@
         var projectTimes = timeEntriesData
             .GroupBy(te => te.ProjectName)
             .Select(g => new { ProjectName = g.Key, TotalHours = g.Sum(te => (te.EndTime - te.StartTime).TotalHours) })
+            .Where(x => x.TotalHours > 0) 
             .OrderByDescending(x => x.TotalHours)
             .ToList();
 
-        // Erstelle und gib die neue Liste direkt zurück
         return projectTimes.Select(pt => new ChartDataPoint
             {
                 X = pt.ProjectName,
@@ -425,11 +434,12 @@
             .Where(te => te.UserId == _userId && te.StartTime >= fromDate)
             .Select(te => new { te.StartTime, te.EndTime })
             .ToListAsync();
+
         var dailyHours = timeEntriesData
             .GroupBy(te => te.StartTime.Date)
             .ToDictionary(g => g.Key, g => g.Sum(te => (te.EndTime - te.StartTime).TotalHours));
-        var last7Days = Enumerable.Range(0, 7).Select(i => DateTime.UtcNow.Date.AddDays(-i));
 
+        var last7Days = Enumerable.Range(0, 7).Select(i => DateTime.UtcNow.Date.AddDays(-i));
         var tempData = new List<ChartDataPoint>();
         foreach (var day in last7Days.OrderBy(d => d))
         {
@@ -439,14 +449,13 @@
                     Y = Convert.ToDecimal(dailyHours.TryGetValue(day, out var hours) ? Math.Round(hours, 2) : 0)
                 });
         }
-
         _barChartData = tempData;
 
-        // Dynamische Y-Achse
         var maxHours = _barChartData.Any() ? _barChartData.Max(d => d.Y) : 8;
         if (maxHours < 8) maxHours = 8;
         _yAxisMax = Convert.ToDecimal(Math.Ceiling(maxHours / 2) * 2);
     }
+
     private string FormatDuration(TimeSpan duration)
     {
         if (duration.TotalHours >= 1)
@@ -462,18 +471,16 @@
         var localNow = DateTime.Now;
         var diff = localNow - localTime;
 
-        if (localTime.Date == localNow.Date) // Heute
+        if (localTime.Date == localNow.Date)
         {
             if (diff.TotalMinutes < 1) return "gerade eben";
             if (diff.TotalMinutes < 60) return $"vor {(int)diff.TotalMinutes} Minuten";
             return $"vor {(int)diff.TotalHours} Stunden";
         }
-
-        if (localTime.Date == localNow.Date.AddDays(-1)) // Gestern
+        if (localTime.Date == localNow.Date.AddDays(-1))
         {
             return "Gestern";
         }
-
         return localTime.ToString("dd. MMM yyyy");
     }
 

@@ -4,6 +4,7 @@
 @inject IDbContextFactory<ZeiterfassungContext> DbFactory
 @inject ILogger<ManageProjectMembersDialog> Logger
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudDialog>
     <TitleContent>
@@ -22,13 +23,29 @@
             <MudList Clickable="false" T="ProjectUser">
                 @foreach (var member in project.ProjectUsers.OrderBy(u => u.User.UserName))
                 {
-                    <MudListItem Icon="@Icons.Material.Filled.Person">
-                        @member.User.UserName
-                        <MudChip Size="MudBlazor.Size.Small" Color="MudBlazor.Color.Primary" Class="ml-2">@member.Role</MudChip>
-                        @if (member.UserId != project.OwnerId) // Der Owner kann nicht entfernt werden
-                        {
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="MudBlazor.Size.Small" OnClick="@(() => RemoveMember(member))" Class="ml-auto" />
-                        }
+                    <MudListItem>
+                        <div class="d-flex align-center" style="width: 100%;">
+
+                            <div>
+                                @member.User.UserName
+                                @if (member.UserId == project.OwnerId)
+                                {
+                                    <MudChip Size="MudBlazor.Size.Small" Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" Class="ml-2">Leiter</MudChip>
+                                }
+                            </div>
+
+                            <MudSpacer />
+
+                            <div>
+                                @if (member.UserId != project.OwnerId)
+                                {
+                                    <MudTooltip Text="Leitung an dieses Mitglied übertragen">
+                                        <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Size="MudBlazor.Size.Small" OnClick="@(() => TransferOwnership(member))" />
+                                    </MudTooltip>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="MudBlazor.Size.Small" OnClick="@(() => RemoveMember(member))" Class="ml-2" />
+                                }
+                            </div>
+                        </div>
                     </MudListItem>
                 }
             </MudList>
@@ -36,9 +53,9 @@
             <MudText Class="mt-6 mb-2"><b>Neues Mitglied hinzufügen</b></MudText>
             <div class="d-flex">
                 <MudAutocomplete T="User"
-                                 Label="Muster-Benutzer auswählen"
+                                 Label="Benutzer auswählen"
                                  @bind-Value="userToAdd"
-                                 SearchFunc="@SearchSampleUsers"
+                                 SearchFunc="@SearchAvailableUsers"
                                  ToStringFunc="@(u => u?.UserName)"
                                  Variant="Variant.Outlined"
                                  Class="flex-grow-1" />
@@ -52,14 +69,11 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance MudDialog { get; set; }
-
-    [Parameter]
-    public int ProjectId { get; set; }
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
 
     private Project? project;
-    private List<User> availableSampleUsers = new();
+    private List<User> availableUsers = new();
     private User? userToAdd;
 
     protected override async Task OnInitializedAsync()
@@ -73,53 +87,76 @@
         {
             await using var context = await DbFactory.CreateDbContextAsync();
             project = await context.Projects
-                                   .Include(p => p.ProjectUsers)
-                                   .ThenInclude(pu => pu.User)
-                                   .AsNoTracking()
-                                   .FirstOrDefaultAsync(p => p.Id == ProjectId);
-            
-            var memberIds = project?.ProjectUsers.Select(pu => pu.UserId).ToList() ?? new List<string>();
+                .Include(p => p.ProjectUsers)
+                .ThenInclude(pu => pu.User)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == ProjectId);
 
-            availableSampleUsers = await context.Users
-                                                .Where(u => u.IsSampleUser && !memberIds.Contains(u.Id))
-                                                .OrderBy(u => u.UserName)
-                                                .AsNoTracking()
-                                                .ToListAsync();
+            var memberIds = project?.ProjectUsers.Select(pu => pu.UserId).ToList() ?? new List<string>();
+            availableUsers = await context.Users
+                .Where(u => !memberIds.Contains(u.Id)) // Nur User, die noch nicht im Projekt sind
+                .OrderBy(u => u.UserName)
+                .AsNoTracking()
+                .ToListAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Laden der Projektdaten für Dialog.");
+            Logger.LogError(ex, "Fehler beim Laden der Projektdaten.");
             Snackbar.Add("Laden der Mitglieder fehlgeschlagen.", Severity.Error);
         }
     }
 
-    private async Task<IEnumerable<User>> SearchSampleUsers(string value, CancellationToken token)
+    private async Task TransferOwnership(ProjectUser newOwner)
     {
-        if (string.IsNullOrEmpty(value))
-            return availableSampleUsers;
-        
-        return availableSampleUsers.Where(u => u.UserName != null && u.UserName.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+        var parameters = new DialogParameters();
+        parameters.Add("ContentText", $"Möchtest du die Projektleitung wirklich an {newOwner.User.UserName} übertragen? Du kannst diese Aktion nicht rückgängig machen.");
+        parameters.Add("ButtonText", "Übertragen");
+        parameters.Add("Color", MudBlazor.Color.Error);
+
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Leitung übertragen bestätigen", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                await using var context = await DbFactory.CreateDbContextAsync();
+                var projectToUpdate = await context.Projects.FindAsync(ProjectId);
+                if (projectToUpdate != null)
+                {
+                    projectToUpdate.OwnerId = newOwner.UserId;
+                    await context.SaveChangesAsync();
+                    Snackbar.Add($"Die Projektleitung wurde an {newOwner.User.UserName} übertragen.", Severity.Success);
+                    await LoadDataAsync();
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Fehler bei der Übertragung der Projektleitung.");
+                Snackbar.Add("Die Projektleitung konnte nicht übertragen werden.", Severity.Error);
+            }
+        }
     }
-    
+
+    private async Task<IEnumerable<User>> SearchAvailableUsers(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value)) return availableUsers;
+        return availableUsers.Where(u => u.UserName != null && u.UserName.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+
     private async Task AddMember()
     {
         if (userToAdd is null || project is null) return;
-        
         try
         {
             await using var context = await DbFactory.CreateDbContextAsync();
-            var newMember = new ProjectUser
-            {
-                ProjectId = project.Id,
-                UserId = userToAdd.Id,
-                Role = ProjectUser.RoleMember
-            };
+            var newMember = new ProjectUser { ProjectId = project.Id, UserId = userToAdd.Id, Role = ProjectUser.RoleMember };
             context.ProjectUsers.Add(newMember);
             await context.SaveChangesAsync();
-            
             Snackbar.Add($"{userToAdd.UserName} wurde zum Projekt hinzugefügt.", Severity.Success);
-            userToAdd = null; 
-            await LoadDataAsync(); 
+            userToAdd = null;
+            await LoadDataAsync();
             StateHasChanged();
         }
         catch (Exception ex)
