@@ -43,7 +43,7 @@
     <RowTemplate>
         <MudTd DataLabel="Name">@context.Name</MudTd>
         <MudTd DataLabel="Beschreibung">@context.Description</MudTd>
-        <MudTd DataLabel="Leitung">@context.User.UserName</MudTd>
+        <MudTd DataLabel="Leitung">@context.User.NormalizedUserName</MudTd>
         <MudTd DataLabel="Aktionen" Style="text-align:right">
             @if (context.OwnerId == currentUserId)
             {
@@ -105,7 +105,7 @@
                                .Where(p => p.OwnerId == currentUserId || p.ProjectUsers.Any(pu => pu.UserId == currentUserId))
                                .AsNoTracking();
 
-            // Filtering wenn SuchFilter vorhanden ist
+            // Filtering if search string is provided
             if (!string.IsNullOrWhiteSpace(_searchString))
             {
                 query = query.Where(p =>
@@ -124,7 +124,7 @@
                     query = query.OrderByDirection(state.SortDirection, p => p.Description);
                     break;
                 case "Leitung":
-                    query = query.OrderByDirection(state.SortDirection, p => p.User.UserName);
+                    query = query.OrderByDirection(state.SortDirection, p => p.User.NormalizedUserName);
                     break;
                 default:
                     break;

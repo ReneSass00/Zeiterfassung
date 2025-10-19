@@ -82,9 +82,10 @@
                 .ToListAsync();
         }
 
+
+        // Edit-Mode
         if (EntryToEdit is not null)
         {
-            // Wir sind im Bearbeiten-Modus
             _dialogTitle = "Zeiteintrag bearbeiten";
             _projectId = EntryToEdit.ProjectId;
             _description = EntryToEdit.Description;
@@ -97,9 +98,9 @@
             _localEndDate = localEnd.Date;
             _localEndTime = localEnd.TimeOfDay;
         }
+        // Create-Mode
         else
         {
-            // Wir sind im Erstellen-Modus (z.B. nach Timer-Stop)
             _dialogTitle = "Zeiteintrag erstellen";
             _projectId = PreselectedProjectId ?? 0;
             _description = PreselectedDescription ?? string.Empty;

@@ -5,17 +5,17 @@ using Zeiterfassung.Reports.Data;
 
 namespace Zeiterfassung.Reports
 {
-    public class MonatsnachweisDocument : IDocument
+    public class ProjektnachweisDocument : IDocument
     {
-        private readonly List<MonatsnachweisReportModel> _zeiten;
-        private readonly string _mitarbeiterName;
-        private readonly string _berichtszeitraum;
+        private readonly List<ProjektnachweisReportModel> _zeiten;
+        private readonly string _projektName;
+        private readonly string _leistungszeitraum;
 
-        public MonatsnachweisDocument(List<MonatsnachweisReportModel> zeiten, string mitarbeiterName, string berichtszeitraum)
+        public ProjektnachweisDocument(List<ProjektnachweisReportModel> zeiten, string projektName, string leistungszeitraum)
         {
             _zeiten = zeiten;
-            _mitarbeiterName = mitarbeiterName;
-            _berichtszeitraum = berichtszeitraum;
+            _projektName = projektName;
+            _leistungszeitraum = leistungszeitraum;
         }
 
         public DocumentMetadata GetMetadata() => DocumentMetadata.Default;
@@ -25,12 +25,8 @@ namespace Zeiterfassung.Reports
             container.Page(page =>
             {
                 page.Margin(50);
-                page.DefaultTextStyle(x => x.FontSize(12));
-
                 page.Header().Element(ComposeHeader);
-
                 page.Content().Element(ComposeContent);
-
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.CurrentPageNumber();
@@ -44,11 +40,10 @@ namespace Zeiterfassung.Reports
         {
             container.Column(column =>
             {
-                column.Item().Text($"Monatsnachweis für {_mitarbeiterName}")
+                column.Item().Text($"Leistungsnachweis für Projekt: {_projektName}")
                     .SemiBold().FontSize(20);
 
-                column.Item().Text(_berichtszeitraum)
-                    .FontSize(15);
+                column.Item().Text($"Leistungszeitraum: {_leistungszeitraum}").FontSize(15);
 
                 column.Item().PaddingTop(20).BorderBottom(1).BorderColor(Colors.Grey.Lighten1);
             });
@@ -56,7 +51,6 @@ namespace Zeiterfassung.Reports
 
         void ComposeContent(IContainer container)
         {
-            // group by date
             var groupedZeiten = _zeiten
                 .GroupBy(z => z.Datum.Date)
                 .OrderBy(g => g.Key);
@@ -65,48 +59,36 @@ namespace Zeiterfassung.Reports
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.ConstantColumn(80);    
-                    columns.RelativeColumn(3);     
-                    columns.RelativeColumn(5);     
-                    columns.ConstantColumn(60);    
+                    columns.ConstantColumn(80);    // Datum
+                    columns.RelativeColumn(3);     // Mitarbeiter
+                    columns.RelativeColumn(5);     // Tätigkeit
+                    columns.ConstantColumn(60);    // Dauer
                 });
 
                 table.Header(header =>
                 {
                     header.Cell().BorderBottom(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Datum").SemiBold();
-                    header.Cell().BorderBottom(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Projekt").SemiBold();
+                    header.Cell().BorderBottom(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Mitarbeiter").SemiBold();
                     header.Cell().BorderBottom(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Tätigkeit").SemiBold();
                     header.Cell().BorderBottom(1).Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Dauer").SemiBold();
                 });
 
-                // outer loop for each date group
                 foreach (var group in groupedZeiten)
                 {
                     table.Cell().RowSpan((uint)group.Count()).BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(group.Key.ToString("dd.MM.yyyy"));
 
-                    // inner loop for each entry in the date group
-                    var isFirstInGroup = true;
                     foreach (var item in group)
                     {
-                        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(item.ProjektName ?? "-");
+                        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(item.MitarbeiterName);
                         table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(item.Taetigkeit ?? "-");
                         table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).AlignRight().Text($"{item.Dauer:hh\\:mm}");
-
-                        isFirstInGroup = false;
                     }
                 }
 
-                // Beginn-Summary
                 var gesamtDauer = new TimeSpan(_zeiten.Sum(z => z.Dauer.Ticks));
-                var totalHoursDecimal = gesamtDauer.TotalHours;
 
-                // Summe für Stunden im HH:mm Format
-                table.Cell().ColumnSpan(3).BorderTop(1).Padding(5).AlignRight().Text("Gesamtstunden (HH:mm):").Bold();
+                table.Cell().ColumnSpan(3).BorderTop(1).Padding(5).AlignRight().Text("Gesamtstunden:").Bold();
                 table.Cell().BorderTop(1).Padding(5).AlignRight().Text($"{Math.Floor(gesamtDauer.TotalHours)}:{(gesamtDauer.Minutes):00}").Bold();
-
-                // Summe als Dezimalzahl für die Rechnungsstellung
-                table.Cell().ColumnSpan(3).Padding(5).AlignRight().Text("Gesamtstunden (Dezimal):").Bold();
-                table.Cell().Padding(5).AlignRight().Text($"{totalHoursDecimal:F2} h").Bold();
             });
         }
     }

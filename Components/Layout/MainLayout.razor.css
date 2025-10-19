@@ -1,30 +1,36 @@
 
-main {
-    flex: 1;
+::deep .mud-nav-link {
+    margin: 1rem 1rem; 
+    padding: 0.75rem 1rem !important; 
+    border-radius: 8px;
+    transition: background-color 0.2s ease-in-out; 
+    position: relative; 
 }
 
+/* Hover-Effect  */
+::deep .mud-nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
 
+/*active nav-link*/
+::deep .mud-nav-link.active {
+    background-color: rgba(255, 255, 255, 0.1);
+    font-weight: 500;
+}
 
-
-
-
-#blazor-error-ui {
-    color-scheme: light only;
-    background: lightyellow;
-    bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
-    box-sizing: border-box;
-    display: none;
+::deep .mud-nav-link.active::before {
+    content: '';
+    position: absolute;
     left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
-    position: fixed;
-    width: 100%;
-    z-index: 1000;
+    top: 20%;
+    height: 60%;
+    width: 4px;
+    background-color: var(--mud-palette-primary);
+    border-radius: 0 4px 4px 0;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+::deep .mud-appbar {
+    background-color: var(--mud-palette-appbar-background) !important;
+}
+
+

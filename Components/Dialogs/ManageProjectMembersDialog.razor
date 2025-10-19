@@ -21,13 +21,13 @@
 
             <MudText Class="mt-4 mb-2"><b>Aktuelle Mitglieder</b></MudText>
             <MudList Clickable="false" T="ProjectUser">
-                @foreach (var member in project.ProjectUsers.OrderBy(u => u.User.UserName))
+                @foreach (var member in project.ProjectUsers.OrderBy(u => u.User.NormalizedUserName))
                 {
                     <MudListItem>
                         <div class="d-flex align-center" style="width: 100%;">
 
                             <div>
-                                @member.User.UserName
+                                @member.User.NormalizedUserName
                                 @if (member.UserId == project.OwnerId)
                                 {
                                     <MudChip Size="MudBlazor.Size.Small" Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" Class="ml-2">Leiter</MudChip>
@@ -94,7 +94,7 @@
 
             var memberIds = project?.ProjectUsers.Select(pu => pu.UserId).ToList() ?? new List<string>();
             availableUsers = await context.Users
-                .Where(u => !memberIds.Contains(u.Id)) // Nur User, die noch nicht im Projekt sind
+                .Where(u => !memberIds.Contains(u.Id)) // only users that are not already members
                 .OrderBy(u => u.UserName)
                 .AsNoTracking()
                 .ToListAsync();
@@ -109,7 +109,7 @@
     private async Task TransferOwnership(ProjectUser newOwner)
     {
         var parameters = new DialogParameters();
-        parameters.Add("ContentText", $"Möchtest du die Projektleitung wirklich an {newOwner.User.UserName} übertragen? Du kannst diese Aktion nicht rückgängig machen.");
+        parameters.Add("ContentText", $"Möchtest du die Projektleitung wirklich an {newOwner.User.NormalizedUserName} übertragen? Du kannst diese Aktion nicht rückgängig machen.");
         parameters.Add("ButtonText", "Übertragen");
         parameters.Add("Color", MudBlazor.Color.Error);
 
@@ -126,7 +126,7 @@
                 {
                     projectToUpdate.OwnerId = newOwner.UserId;
                     await context.SaveChangesAsync();
-                    Snackbar.Add($"Die Projektleitung wurde an {newOwner.User.UserName} übertragen.", Severity.Success);
+                    Snackbar.Add($"Die Projektleitung wurde an {newOwner.User.NormalizedUserName} übertragen.", Severity.Success);
                     await LoadDataAsync();
                     StateHasChanged();
                 }
@@ -174,7 +174,7 @@
             context.ProjectUsers.Remove(memberToRemove);
             await context.SaveChangesAsync();
             
-            Snackbar.Add($"{memberToRemove.User.UserName} wurde aus dem Projekt entfernt.", Severity.Info);
+            Snackbar.Add($"{memberToRemove.User.NormalizedUserName} wurde aus dem Projekt entfernt.", Severity.Info);
             await LoadDataAsync();
             StateHasChanged();
         }

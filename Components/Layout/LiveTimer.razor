@@ -17,7 +17,7 @@
 <CascadingValue Value="this">
     @if (TimerState.IsRunning || TimerState.IsPaused)
     {
-        @* Die Ansicht für einen aktiven (laufenden ODER pausierten) Timer *@
+        @* Timer started already (in pause or running) *@
         <div class="d-flex flex-column pa-4" style="height: 100%; min-height: 210px;">
             <div>
                 <MudGrid Spacing="2">
@@ -39,7 +39,7 @@
                 </MudText>
             </div>
 
-            @* GEÄNDERT: Dynamische Buttons für Pause, Fortsetzen und Stoppen *@
+            @* Control Buttons (Pause, Continue, Stop)*@
             <MudStack Row="true" Justify="Justify.Center" Spacing="2" Class="mb-8">
                 @if (TimerState.IsRunning)
                 {
@@ -59,9 +59,10 @@
             </MudStack>
         </div>
     }
+    @*Timer is cuurently not running*@
     else
     {
-        @* Die Ansicht für den gestoppten Timer bleibt unverändert *@
+        @*Set Project, fill Description and start timer section*@
         <MudStack Spacing="3">
             <MudTextField @bind-Value="_description" Label="Woran arbeitest du gerade?" Variant="Variant.Outlined" Margin="Margin.Dense" />
             <MudSelect T="int?" @bind-Value="_selectedProjectId" Label="Projekt auswählen" Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense">
@@ -80,6 +81,8 @@
             </MudStack>
         </MudStack>
         <MudDivider Class="my-2" />
+
+        @* Quick-Starts Interface*@
         <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.caption">Quick-Starts:</MudText>
             <MudTooltip Text="Quick-Starts verwalten">

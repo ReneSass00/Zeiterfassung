@@ -14,7 +14,7 @@
         </MudStack>
     </TitleContent>
     <DialogContent>
-        @* VORHANDENE VORLAGEN AUFLISTEN *@
+        @* Existing Quick-Starts *@
         <MudSimpleTable Hover="true" Dense="true">
             <thead>
                 <tr>
@@ -31,7 +31,6 @@
                         <td>@template.Project.Name</td>
                         <td>
                             <MudStack Row="true" Spacing="0">
-                                @* NEU: Bearbeiten-Button *@
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="MudBlazor.Size.Small" OnClick="@(() => StartEdit(template))" />
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="MudBlazor.Size.Small" OnClick="@(() => DeleteTemplate(template.Id))" />
                             </MudStack>
@@ -43,9 +42,8 @@
 
         <MudDivider Class="my-6" />
 
-        @* FORMULAR FÜR NEU/BEARBEITEN (ohne MudPaper) *@
+        @* new/edit Quick-Starts *@
         <div>
-            @* NEU: Dynamischer Titel *@
             <MudText Typo="Typo.h6" GutterBottom="true">@(_templateToEdit == null ? "Neue Vorlage erstellen" : "Vorlage bearbeiten")</MudText>
 
             <MudTextField @bind-Value="_editableTemplate.Name" Label="Name (für Button)" For="@(() => _editableTemplate.Name)" />
@@ -85,8 +83,7 @@
     private QuickStartTemplate _editableTemplate = new();
     private QuickStartTemplate? _templateToEdit;
 
-    // NEU: Ein Feld, das sich merkt, ob Änderungen gemacht wurden
-    private bool _changesMade = false;
+    private bool _isChanged = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,7 +152,7 @@
 
         await dbContext.SaveChangesAsync();
 
-        _changesMade = true; // GEÄNDERT: Signal setzen, dass sich etwas getan hat
+        _isChanged = true;
         CancelEdit();
         await LoadTemplates(dbContext);
         StateHasChanged();
@@ -169,24 +166,22 @@
         {
             dbContext.QuickStartTemplates.Remove(template);
             await dbContext.SaveChangesAsync();
-            _changesMade = true; // GEÄNDERT: Signal setzen, dass sich etwas getan hat
+            _isChanged = true; 
             await LoadTemplates(dbContext);
             StateHasChanged();
             Snackbar.Add("Vorlage gelöscht.", Severity.Info);
         }
     }
 
-    // GEÄNDERT: Diese Methode ersetzt die alte "CancelDialog"
     void CloseDialog()
     {
-        if (_changesMade)
+        if (_isChanged)
         {
-            // Schließe mit einem "OK"-Ergebnis, damit der LiveTimer das mitbekommt
+            // close dialog with ok result to indicate changes to the liveTimer
             DialogInstance.Close(DialogResult.Ok(true));
         }
         else
         {
-            // Schließe wie bisher mit "Cancel"
             DialogInstance.Cancel();
         }
     }

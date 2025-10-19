@@ -46,7 +46,6 @@
     {
         if (ProjectToEdit is not null)
         {
-            // Wenn ein Projekt zum Bearbeiten übergeben wurde, füllen wir das Formular
             DialogTitle = "Projekt bearbeiten";
             projectModel = ProjectToEdit;
         }
@@ -64,8 +63,6 @@
 
     private void Submit()
     {
-        // Validiert die Form und schließt den Dialog.
-        // Das Projekt-Objekt wird als Ergebnis zurückgegeben.
         MudDialog.Close(DialogResult.Ok(projectModel));
     }
 

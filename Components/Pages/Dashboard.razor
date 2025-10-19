@@ -19,7 +19,7 @@
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
     <MudText Typo="Typo.h4" GutterBottom="true" Class="mb-4">Willkommen zurück!</MudText>
 
-    @* --- REIHE 1: KPI-KARTEN --- *@
+    @* --- Row 1: KPI-Cards --- *@
     <MudGrid Spacing="4" Class="mb-6">
         <MudItem xs="12" sm="6" md="3">
             <MudCard Elevation="2" Class="card-hover-effect" Height="100%">
@@ -98,9 +98,9 @@
         </MudItem>
     </MudGrid>
 
-    @* --- REIHE 2: LIVE-TIMER UND CHARTS --- *@
+    @* --- Row 2: LiveTimer and Charts --- *@
     <MudGrid Spacing="4" Class="mb-6">
-        @* LINKE SPALTE: LIVE-TIMER *@
+        @* Column 1: LiveTimer *@
         <MudItem xs="12" lg="4">
             <MudPaper Elevation="2" Class="pa-4 card-hover-effect-subtle" Height="100%">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -110,9 +110,9 @@
                 <LiveTimer OnTimeEntryCreated="LoadAllDashboardData" />
             </MudPaper>
         </MudItem>
-        @* RECHTE SPALTE: CHARTS *@
         <MudItem xs="12" lg="8">
             <MudGrid Spacing="4">
+                @* Column 2: horizontal barchart*@
                 <MudItem xs="12" md="6">
                     <MudPaper Class="pa-4 card-hover-effect-subtle">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
@@ -131,11 +131,11 @@
                         {
                             <ApexChart @key="_projectDistributionChartKey" @ref="_projectDistributionChart" TItem="ChartDataPoint" Options="_projectDistributionChartOptions">
                                 <ApexPointSeries TItem="ChartDataPoint"
-                                Items="_projectDistributionData"
-                                SeriesType="SeriesType.Bar"
-                                Name="Stunden"
-                                XValue="e => e.X"
-                                YValue="e => e.Y" />
+                                                 Items="_projectDistributionData"
+                                                 SeriesType="SeriesType.Bar"
+                                                 Name="Stunden"
+                                                 XValue="e => e.X"
+                                                 YValue="e => e.Y" />
                             </ApexChart>
                         }
                         else
@@ -144,6 +144,7 @@
                         }
                     </MudPaper>
                 </MudItem>
+                @* Column 3: vertical barchart*@
                 <MudItem xs="12" md="6">
                     <MudPaper Class="pa-4 card-hover-effect-subtle" Height="100%">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
@@ -154,12 +155,12 @@
                         {
                             <ApexChart TItem="ChartDataPoint" Options="_barChartOptions">
                                 <ApexPointSeries TItem="ChartDataPoint"
-                                Items="_barChartData"
-                                Name="Erfasste Stunden"
-                                SeriesType="SeriesType.Bar"
-                                Color="#7B68EE"
-                                XValue="e => e.X"
-                                YValue="e => e.Y" />
+                                                 Items="_barChartData"
+                                                 Name="Erfasste Stunden"
+                                                 SeriesType="SeriesType.Bar"
+                                                 Color="#7B68EE"
+                                                 XValue="e => e.X"
+                                                 YValue="e => e.Y" />
                             </ApexChart>
 
                         }
@@ -173,7 +174,7 @@
         </MudItem>
     </MudGrid>
 
-    @* --- REIHE 3: LETZTE AKTIVITÄTEN --- *@
+    @* --- Row 3: Recent activities --- *@
     <MudPaper Class="pa-4 mt-6 card-hover-effect-subtle">
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
             <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" Color="MudBlazor.Color.Primary" />
@@ -209,14 +210,14 @@
 
     public class ChartDataPoint
     {
-        public string X { get; set; } // Wert für die X-Achse (Label)
-        public decimal Y { get; set; } // Wert für die Y-Achse (Datenpunkt)
+        public string X { get; set; } 
+        public decimal Y { get; set; }
     }
 
     private ApexChart<ChartDataPoint>? _donutChart;
     private ApexChart<ChartDataPoint>? _projectDistributionChart;
     private List<ChartDataPoint> _projectDistributionData = [];
-    private Guid _projectDistributionChartKey = Guid.NewGuid(); 
+    private Guid _projectDistributionChartKey = Guid.NewGuid();
     private List<ChartDataPoint> _barChartData = new();
     private decimal _yAxisMax = 8;
     private ClaimsPrincipal? _user;
@@ -226,7 +227,7 @@
     private double _todayVsYesterdayDiff;
     private bool _isTodayBetter;
     private double _currentWeekHours;
-    private readonly double _weeklyGoalHours = 40.0; // Kann man später in den User-Settings speichern
+    private readonly double _weeklyGoalHours = 40.0; 
     private double _weeklyProgress;
     private int _activeDaysInMonth;
     private double _avgHoursPerDay;
@@ -246,7 +247,7 @@
                 Bar = new PlotOptionsBar
                 {
                     //round corners
-                    BorderRadius = 8, 
+                    BorderRadius = 8,
                     ColumnWidth = "60%"
                 }
             },
@@ -273,7 +274,7 @@
             {
                 Bar = new PlotOptionsBar
                 {
-                    Horizontal = true, 
+                    Horizontal = true,
                     BorderRadius = 4,
                     DataLabels = new PlotOptionsBarDataLabels { Position = BarDataLabelPosition.Top }
                 }
@@ -297,13 +298,14 @@
 
     private async Task LoadAllDashboardData()
     {
-        await LoadBarChartData();
+        await LoadWeeklyHoursChartData();
         await LoadDashboardMetricsAsync();
         await OnDateRangeChangedAsync(DateRangeOptions.ThisMonth); // Standard-Filter beim Start
         await LoadRecentActivitiesAsync();
         StateHasChanged();
     }
 
+    // Method to load recent activities
     private async Task LoadRecentActivitiesAsync()
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
@@ -317,6 +319,7 @@
             .ToListAsync();
     }
 
+    // Method to load dashboard KPIs
     private async Task LoadDashboardMetricsAsync()
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
@@ -364,6 +367,8 @@
         _avgHoursPerDay = activeDaysLast30Days > 0 ? totalHoursLast30Days / activeDaysLast30Days : 0;
     }
 
+
+    // When Date Range changes on horizontal bar chart
     private async Task OnDateRangeChangedAsync(DateRangeOptions option)
     {
         var today = DateTime.UtcNow.Date;
@@ -401,6 +406,7 @@
 
     }
 
+    // Method to load data for horizontal bar chart
     private async Task<List<ChartDataPoint>> LoadProjectDistributionDataAsync(DateTime fromDate)
     {
         if (_userId is null) return new List<ChartDataPoint>();
@@ -414,7 +420,7 @@
         var projectTimes = timeEntriesData
             .GroupBy(te => te.ProjectName)
             .Select(g => new { ProjectName = g.Key, TotalHours = g.Sum(te => (te.EndTime - te.StartTime).TotalHours) })
-            .Where(x => x.TotalHours > 0) 
+            .Where(x => x.TotalHours > 0)
             .OrderByDescending(x => x.TotalHours)
             .ToList();
 
@@ -424,7 +430,9 @@
                 Y = Convert.ToDecimal(Math.Round(pt.TotalHours, 2))
             }).ToList();
     }
-    private async Task LoadBarChartData()
+
+    // Method to load data for vertical bar chart
+    private async Task LoadWeeklyHoursChartData()
     {
         if (_userId is null) return;
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
@@ -465,6 +473,8 @@
         return $"{duration.Minutes}m {duration.Seconds}s";
     }
 
+
+    // Method to format relative time from UTC to local
     private string FormatRelativeTime(DateTime utcTime)
     {
         var localTime = utcTime.ToLocalTime();

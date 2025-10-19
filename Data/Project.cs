@@ -23,7 +23,6 @@ namespace Zeiterfassung.Data
         [ForeignKey("OwnerId")]
         public virtual User User { get; set; }
 
-        // Navigationseigenschaft zur Verknüpfungstabelle
         public virtual ICollection<ProjectUser> ProjectUsers { get; set; }
 
         public virtual ICollection<TimeEntry> TimeEntries { get; set; }

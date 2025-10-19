@@ -1,6 +1,4 @@
-﻿// Data/ZeiterfassungContext.cs
-
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Zeiterfassung.Data;
@@ -21,14 +19,12 @@ public class ZeiterfassungContext : IdentityDbContext<User>
     {
         base.OnModelCreating(builder);
 
-        // Bestehende Konfiguration für TimeEntry
         builder.Entity<TimeEntry>()
             .HasOne(te => te.User)
             .WithMany()
             .HasForeignKey(te => te.UserId)
             .OnDelete(DeleteBehavior.NoAction);
 
-        // Bestehende Konfiguration für die ProjectUser-Join-Tabelle
         builder.Entity<ProjectUser>()
             .HasKey(pu => new { pu.ProjectId, pu.UserId });
 
@@ -44,14 +40,11 @@ public class ZeiterfassungContext : IdentityDbContext<User>
             .HasForeignKey(pu => pu.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // NEU: Wir unterbrechen die Kaskade vom User (Owner) zum Projekt.
-        // Das verhindert das automatische Löschen von Projekten, wenn der Owner gelöscht wird.
         builder.Entity<Project>()
             .HasOne(p => p.User)
-            .WithMany() // Ein User kann Owner von vielen Projekten sein
+            .WithMany() 
             .HasForeignKey(p => p.OwnerId)
-            .OnDelete(DeleteBehavior.Restrict); // Oder .NoAction. Verhindert das Löschen des Users.
-
+            .OnDelete(DeleteBehavior.Restrict); 
 
 
 

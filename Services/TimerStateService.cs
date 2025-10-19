@@ -4,18 +4,17 @@ namespace Zeiterfassung.Services;
 public class TimerStateService : IDisposable
 {
     private System.Threading.Timer? _timer;
-    private TimeSpan _elapsedBeforePause = TimeSpan.Zero; // NEU: Speichert die bereits vergangene Zeit vor einer Pause
+    private TimeSpan _elapsedBeforePause = TimeSpan.Zero;
 
-    public bool IsRunning { get; private set; } // Bedeutet: Die Uhr tickt aktiv
-    public bool IsPaused { get; private set; } // NEU: Ist der Timer pausiert?
-    public DateTime? StartTime { get; private set; } // Der Zeitpunkt, an dem die Uhr (wieder) zu ticken begann
+    public bool IsRunning { get; private set; }
+    public bool IsPaused { get; private set; } 
+    public DateTime? StartTime { get; private set; } 
     public int? SelectedProjectId { get; private set; }
     public string? SelectedProjectName { get; private set; }
     public string? Description { get; private set; }
 
     public event Action? OnChange;
 
-    // NEU: Eine Hilfsmethode, um die korrekte Gesamtzeit zu berechnen
     public TimeSpan GetElapsedTime()
     {
         if (IsRunning && StartTime.HasValue)
@@ -32,7 +31,7 @@ public class TimerStateService : IDisposable
         SelectedProjectId = projectId;
         SelectedProjectName = projectName;
         Description = description;
-        _elapsedBeforePause = TimeSpan.Zero; // Zurücksetzen für einen neuen Timer
+        _elapsedBeforePause = TimeSpan.Zero; 
         StartTime = DateTime.UtcNow;
         IsRunning = true;
         IsPaused = false;
@@ -41,27 +40,26 @@ public class TimerStateService : IDisposable
         NotifyStateChanged();
     }
 
-    // NEUE METHODE zum Pausieren
+
     public void PauseTimer()
     {
         if (!IsRunning) return;
 
         _timer?.Dispose();
         _timer = null;
-        _elapsedBeforePause += (DateTime.UtcNow - StartTime!.Value); // Vergangene Zeit zum Puffer addieren
+        _elapsedBeforePause += (DateTime.UtcNow - StartTime!.Value); 
         IsRunning = false;
         IsPaused = true;
-        StartTime = null; // Die Uhr stoppen
+        StartTime = null; 
 
         NotifyStateChanged();
     }
 
-    // NEUE METHODE zum Fortsetzen
     public void ResumeTimer()
     {
         if (!IsPaused) return;
 
-        StartTime = DateTime.UtcNow; // Die Uhr neu starten
+        StartTime = DateTime.UtcNow; 
         IsRunning = true;
         IsPaused = false;
 
@@ -69,7 +67,6 @@ public class TimerStateService : IDisposable
         NotifyStateChanged();
     }
 
-    // GEÄNDERT: Gibt jetzt Start- und Endzeit zurück für eine korrekte Speicherung
     public (DateTime? Start, DateTime? End, int? ProjectId, string? Description) StopTimer()
     {
         if (!IsRunning && !IsPaused) return (null, null, null, null);
@@ -79,12 +76,10 @@ public class TimerStateService : IDisposable
 
         var endTime = DateTime.UtcNow;
         var totalDuration = GetElapsedTime();
-        // Der "effektive" Startzeitpunkt wird aus der Endzeit und der totalen Dauer berechnet
         var effectiveStartTime = endTime - totalDuration;
 
         var result = (effectiveStartTime, endTime, SelectedProjectId, Description);
 
-        // Kompletter Reset des Zustands
         IsRunning = false;
         IsPaused = false;
         StartTime = null;

@@ -5,7 +5,6 @@ namespace Zeiterfassung.Data
 {
     public class ProjectUser
     {
-        // Rollen-Konstanten
         public const string RoleManager = "Manager";
         public const string RoleMember = "Member";
 

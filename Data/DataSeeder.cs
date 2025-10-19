@@ -1,25 +1,26 @@
-﻿// Data/DataSeeder.cs
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Zeiterfassung.Data;
 
 namespace Zeiterfassung.Data;
 
+/// <summary>
+/// Class to seed initial data into the database.
+/// </summary>
 public static class DataSeeder
 {
-    // Die E-Mails, die wir erstellen wollen
+    // Emails (users) to create
     private static readonly string[] SeederEmails = { "guest@example.com", "alice@example.com", "bob@example.com", "charlie@example.com", "dave@example.com" };
 
     public static async Task InitializeAsync(ZeiterfassungContext context, UserManager<User> userManager)
     {
-        // Stellt sicher, dass die Datenbank erstellt ist.
         await context.Database.EnsureCreatedAsync();
 
         var random = new Random();
 
-        // --- 1. Individuelle User-Prüfung und Erstellung ---
         var existingUsers = await userManager.Users.Where(u => SeederEmails.Contains(u.Email)).ToListAsync();
 
+        // create users
         var guestUser = existingUsers.FirstOrDefault(u => u.Email == "guest@example.com");
         if (guestUser == null)
         {
@@ -58,8 +59,7 @@ public static class DataSeeder
         var usersToSeedTime = new[] { guestUser, userAlice, userBob, userCharlie, userDave };
 
 
-        // --- 2. Projekte erstellen (Idempotent) ---
-        // NEU: Prüfung auf "Website" (altes Projekt) oder "Jahresplanung" (neues Projekt)
+        // --- create projects ---
         if (!await context.Projects.AnyAsync(p => p.Name.Contains("Website") || p.Name.Contains("Jahresplanung")))
         {
             var projectsToAdd = new List<Project>
@@ -71,20 +71,20 @@ public static class DataSeeder
                 new Project { Name = "Urlaub", Description = "Bezahlter Jahresurlaub.", OwnerId = guestUser.Id },
                 new Project { Name = "Feiertag", Description = "Gesetzliche Feiertage (z.B. Weihnachten, Ostern).", OwnerId = guestUser.Id },
                 new Project { Name = "Krankheit", Description = "Krankheitsbedingte Abwesenheit.", OwnerId = guestUser.Id },
-                new Project { Name = "Interne Schulung (Weiterbildung)", Description = "Teilnahme an internen/externen Schulungen.", OwnerId = userCharlie.Id }, // Owner geändert
-                new Project { Name = "Support & Wartung", Description = "Regelmäßige Bugfixes und allgemeine Systemwartung.", OwnerId = userDave.Id },      // Owner geändert
+                new Project { Name = "Interne Schulung (Weiterbildung)", Description = "Teilnahme an internen/externen Schulungen.", OwnerId = userCharlie.Id },
+                new Project { Name = "Support & Wartung", Description = "Regelmäßige Bugfixes und allgemeine Systemwartung.", OwnerId = userDave.Id },
             };
 
             await context.Projects.AddRangeAsync(projectsToAdd);
             await context.SaveChangesAsync();
         }
 
-        // Alle Projekte für die Zeiteinträge laden
+        
         var allProjects = await context.Projects.ToListAsync();
         var operationalProjects = allProjects.Where(p => p.Name != "Urlaub" && p.Name != "Feiertag" && p.Name != "Krankheit").ToArray();
         var nonOperationalProjects = allProjects.Where(p => p.Name == "Urlaub" || p.Name == "Feiertag" || p.Name == "Krankheit").ToArray();
 
-        // --- Team-Mitgliedschaften zuweisen (Idempotent) ---
+        
         var existingMemberships = await context.ProjectUsers.ToListAsync();
         var newMemberships = new List<ProjectUser>();
 
@@ -92,7 +92,6 @@ public static class DataSeeder
         {
             foreach (var project in allProjects)
             {
-                // Füge nur hinzu, wenn der User nicht der Owner ist und die Mitgliedschaft noch nicht existiert
                 if (project.OwnerId != user.Id &&
                     !existingMemberships.Any(m => m.UserId == user.Id && m.ProjectId == project.Id))
                 {
@@ -103,29 +102,26 @@ public static class DataSeeder
         await context.ProjectUsers.AddRangeAsync(newMemberships);
         await context.SaveChangesAsync();
 
-
-
-        // GENERIEREN: Nur wenn noch keine Zeiteinträge existieren
         if (!await context.TimeEntries.AnyAsync())
         {
             await GenerateInitialTimeEntries(context, random, usersToSeedTime, operationalProjects, nonOperationalProjects);
         }
 
-        // VERSCHIEBEN: Aktualisiert die Daten der User bei jedem Start auf aktuelles Datum
-        await ShiftGuestTimeEntriesAsync(context, guestUser);
-        await ShiftGuestTimeEntriesAsync(context, userAlice);
-        await ShiftGuestTimeEntriesAsync(context, userBob);
-        await ShiftGuestTimeEntriesAsync(context, userCharlie);
-        await ShiftGuestTimeEntriesAsync(context, userDave);
+        // Shift the time Entries of the users to current date, therefore the data never gets to old 
+        await ShiftTimeEntries(context, guestUser);
+        await ShiftTimeEntries(context, userAlice);
+        await ShiftTimeEntries(context, userBob);
+        await ShiftTimeEntries(context, userCharlie);
+        await ShiftTimeEntries(context, userDave);
     }
 
     /// <summary>
-    /// Generiert die initialen 365 Tage Zeiteinträge für alle Benutzer.
+    /// Generates initial time entries for users over the past year.
     /// </summary>
     private static async Task GenerateInitialTimeEntries(ZeiterfassungContext context, Random random, User[] usersToSeedTime, Project[] operationalProjects, Project[] nonOperationalProjects)
     {
         var timeEntries = new List<TimeEntry>();
-        var totalDays = 365; // Letzte 365 Tage
+        var totalDays = 365; 
 
         foreach (var user in usersToSeedTime)
         {
@@ -135,9 +131,9 @@ public static class DataSeeder
                 var dayOfWeek = date.DayOfWeek;
 
                 if (dayOfWeek == DayOfWeek.Sunday) continue;
-                if (dayOfWeek == DayOfWeek.Saturday && random.Next(1, 51) != 1) continue; // 1:50 Chance auf Samstag
+                if (dayOfWeek == DayOfWeek.Saturday && random.Next(1, 51) != 1) continue; // 1:50 to work on saturday
 
-                // 1. Chance auf Abwesenheit (ca. 5%)
+                // chance of absence day (5%)
                 if (random.Next(1, 20) == 1)
                 {
                     var absenceProject = nonOperationalProjects[random.Next(0, nonOperationalProjects.Length)];
@@ -152,10 +148,10 @@ public static class DataSeeder
                     continue;
                 }
 
-                // 2. Regulärer Arbeitstag
-                var totalDurationMinutes = random.Next(5 * 60, 9 * 60); // 5 bis 9 Stunden
+                // regular workday
+                var totalDurationMinutes = random.Next(6 * 60, 9 * 60);
                 var remainingMinutes = totalDurationMinutes;
-                var numberOfEntries = random.Next(1, 4); // 1 bis 3 Projekte/Einträge
+                var numberOfEntries = random.Next(1, 4);
                 var startHour = random.Next(7, 10);
                 var currentStartTime = new DateTime(date.Year, date.Month, date.Day, startHour, random.Next(0, 30), 0, DateTimeKind.Utc);
 
@@ -191,9 +187,9 @@ public static class DataSeeder
     }
 
     /// <summary>
-    /// Verschiebt die Zeiteinträge des Gast-Users in die Gegenwart, um aktuelle Daten zu simulieren.
+    /// Shift time entries of a user to ensure the latest entry is at most yesterday.
     /// </summary>
-    private static async Task ShiftGuestTimeEntriesAsync(ZeiterfassungContext context, User guestUser)
+    private static async Task ShiftTimeEntries(ZeiterfassungContext context, User guestUser)
     {
         var guestEntries = await context.TimeEntries
             .Where(te => te.UserId == guestUser.Id)
@@ -204,20 +200,17 @@ public static class DataSeeder
 
         var lastEntryTime = guestEntries.Last().EndTime;
 
-        // Prüfe, ob der letzte Eintrag älter als der Vortag ist.
         if (lastEntryTime.Date < DateTime.UtcNow.Date.AddDays(-1))
         {
             var today = DateTime.UtcNow.Date;
-            var timeSpanSinceLastEntry = today - lastEntryTime.Date.AddDays(1); // Berechne die Verschiebung, um den neuesten Tag auf heute oder gestern zu bringen
+            var timeSpanSinceLastEntry = today - lastEntryTime.Date.AddDays(1); 
 
-            // Verschiebe alle Start- und Endzeiten des Gast-Users
             foreach (var entry in guestEntries)
             {
                 entry.StartTime = entry.StartTime.Add(timeSpanSinceLastEntry);
                 entry.EndTime = entry.EndTime.Add(timeSpanSinceLastEntry);
             }
 
-            // Speichern der aktualisierten Zeiteinträge
             await context.SaveChangesAsync();
         }
     }

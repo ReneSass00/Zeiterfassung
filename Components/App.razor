@@ -31,6 +31,12 @@
 
 
 @code {
+
+    // In case you wondering why i am doing this:
+    // https://stackoverflow.com/questions/77599233/blazor-net-8-and-global-interactivity-issue-with-identity?rq=2
+    // https://github.com/dotnet/aspnetcore/issues/51476
+
+
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 

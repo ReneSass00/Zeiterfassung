@@ -11,41 +11,28 @@
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
-<button>test</button>
 
 @code {
     private MudTheme _myTheme = new MudTheme
         {
             PaletteLight = new PaletteLight
             {
-                // Primärfarbe für Buttons, Links und Akzente
                 Primary = "#7B68EE",
-
-                // Sekundärfarbe, hier als Akzent für die Graphen und Icons
                 Secondary = "#10B981",
-
-                // Hintergrund der gesamten Anwendung
                 Background = "#F7F8FA",
-
-                // Oberfläche für die Karten (Cards), Dialoge etc.
                 Surface = "#FFFFFF",
-
-                // Farbe der Top-Leiste (falls du eine verwendest)
                 AppbarBackground = "#F7F8FA",
-
-                // Hintergrund der seitlichen Navigationsleiste
                 DrawerBackground = "#2A2F4F",
-
-                // Textfarben anpassen für bessere Lesbarkeit
-                TextPrimary = "#2A2F4F", // Dunkler Text auf hellem Grund
-                TextSecondary = "#6B7280", // Helleres Grau für sekundäre Informationen
-                DrawerText = "#FFFFFF", // Weißer Text auf dem dunklen Drawer
-                DrawerIcon = "#FFFFFF" // Weiße Icons im Drawer
+                
+                TextPrimary = "#2A2F4F", 
+                TextSecondary = "#6B7280", 
+                DrawerText = "#FFFFFF", 
+                DrawerIcon = "#FFFFFF"
             },
             LayoutProperties = new LayoutProperties()
             {
-                // Gibt den Karten den typischen abgerundeten Look
-                DefaultBorderRadius = "12px"
+                DefaultBorderRadius = "12px",
+                AppbarHeight = "48px"
             }
         };
 }

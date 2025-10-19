@@ -5,64 +5,150 @@
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h3" GutterBottom="true">Monatlicher Zeitnachweis</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">Berichte erstellen</MudText>
 
-<MudPaper Elevation="3" Class="pa-4" MaxWidth="500px">
-    <MudText Typo="Typo.h5" GutterBottom="true">Berichtsparameter auswählen</MudText>
+<MudGrid Spacing="4">
 
-    @* Mitarbeiter-Auswahl mit MudSelect *@
-    <MudSelect T="string" Label="Mitarbeiter" @bind-Value="selectedMitarbeiterId" AnchorOrigin="Origin.BottomCenter">
-        @if (mitarbeiterListe != null)
-        {
-            @foreach (var ma in mitarbeiterListe)
-            {
-                <MudSelectItem T="string" Value="@ma.Id">@ma.UserName</MudSelectItem>
-            }
-        }
-    </MudSelect>
+    @* --- Monatlicher Zeitnachweis --- *@
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="3" Class="pa-4 d-flex flex-column" Height="100%">
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Monatlicher Zeitnachweis</MudText>
+                <MudSelect T="string" Label="Mitarbeiter" @bind-Value="selectedMitarbeiterId" AnchorOrigin="Origin.BottomCenter" Class="mb-4">
+                    @if (mitarbeiterListe != null)
+                    {
+                        @foreach (var ma in mitarbeiterListe)
+                        {
+                            <MudSelectItem T="string" Value="@ma.Id">@ma.NormalizedUserName</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+                <MudDatePicker Label="Berichtsmonat"
+                               @bind-Date="selectedMonat"
+                               PickerVariant="PickerVariant.Dialog"
+                               DateFormat="MMMM yyyy"
+                               OpenTo="OpenTo.Month"
+                               FixDay="1" />
+            </div>
+            <MudButton Variant="Variant.Filled"
+                       Color="MudBlazor.Color.Primary"
+                       OnClick="GenerateMonatsnachweisReport"
+                       Disabled="@(string.IsNullOrEmpty(selectedMitarbeiterId))"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Article"
+                       Class="mt-5">
+                PDF erstellen
+            </MudButton>
+        </MudPaper>
+    </MudItem>
 
-    @* Monatsauswahl mit MudDatePicker *@
-    <MudDatePicker Label="Berichtsmonat"
-                   @bind-PickerMonth="selectedMonat"
-                   PickerVariant="PickerVariant.Dialog"
-                   DateFormat="MMMM yyyy"
-                   OpenTo="OpenTo.Month"
-                   Class="mt-4" FixDay="1"/>
+    @* --- Detaillierter Projektnachweis --- *@
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="3" Class="pa-4 d-flex flex-column" Height="100%">
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Detaillierter Projektnachweis</MudText>
+                <MudSelect T="int?" Label="Projekt" @bind-Value="selectedProjektId" AnchorOrigin="Origin.BottomCenter" Class="mb-4">
+                    @if (projektListe != null)
+                    {
+                        @foreach (var proj in projektListe)
+                        {
+                            <MudSelectItem T="int?" Value="@proj.Id">@proj.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+                <MudDateRangePicker @bind-DateRange="dateRange" Label="Leistungszeitraum" />
+            </div>
+            <MudButton Variant="Variant.Filled"
+                       Color="MudBlazor.Color.Primary"
+                       OnClick="GenerateProjektnachweisReport"
+                       Disabled="@(selectedProjektId == null || dateRange?.Start == null)"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Article"
+                       Class="mt-5">
+                PDF erstellen
+            </MudButton>
+        </MudPaper>
+    </MudItem>
 
-    <MudButton Variant="Variant.Filled"
-               Color="MudBlazor.Color.Primary"
-               OnClick="GenerateReport"
-               Disabled="@(string.IsNullOrEmpty(selectedMitarbeiterId))"
-               FullWidth="true"
-               StartIcon="@Icons.Material.Filled.Article"
-               Class="mt-5">
-        Bericht als PDF erstellen
-    </MudButton>
-</MudPaper>
+    @* --- Gesamtauswertung --- *@
+    <MudItem xs="12" sm="6" md="4">
+        <MudPaper Elevation="3" Class="pa-4 d-flex flex-column" Height="100%">
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Gesamt-Zeitauswertung</MudText>
+                <MudDateRangePicker @bind-DateRange="gesamtDateRange" Label="Analysezeitraum" Class="mb-4" />
+            </div>
+            <MudButton Variant="Variant.Filled"
+                       Color="MudBlazor.Color.Primary"
+                       OnClick="GenerateGesamtauswertungReport"
+                       Disabled="@(gesamtDateRange?.Start == null)"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Article"
+                       Class="mt-5">
+                PDF erstellen
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+
+</MudGrid>
+
 
 @code {
     private List<User>? mitarbeiterListe;
     private string selectedMitarbeiterId = "";
     private DateTime? selectedMonat = DateTime.Now;
 
+    private List<Project>? projektListe;
+    private int? selectedProjektId;
+    private DateRange? dateRange = new DateRange(DateTime.Now.Date.AddMonths(-1), DateTime.Now.Date);
+
+    private DateRange? gesamtDateRange = new DateRange(DateTime.Now.Date.AddMonths(-1), DateTime.Now.Date);
+
     protected override async Task OnInitializedAsync()
     {
         mitarbeiterListe = await DbContext.Users.OrderBy(m => m.NormalizedUserName).ToListAsync();
+        projektListe = await DbContext.Projects.OrderBy(p => p.Name).ToListAsync();
     }
 
-    /// <summary>
-    /// Calls API Endpoint of Monatsnachweis Report
-    /// </summary>
-    private void GenerateReport()
+    private void GenerateMonatsnachweisReport()
     {
-        if (selectedMonat != null)
+        if (selectedMonat != null && !string.IsNullOrEmpty(selectedMitarbeiterId))
         {
             var url = $"/api/reporting/monatsnachweis?mitarbeiterId={selectedMitarbeiterId}&jahr={selectedMonat.Value.Year}&monat={selectedMonat.Value.Month}";
             NavigationManager.NavigateTo(url, forceLoad: true);
         }
         else
         {
-            Snackbar.Add("Bitte wählen Sie einen Monat aus.", Severity.Warning);
+            Snackbar.Add("Bitte wählen Sie einen Mitarbeiter und einen Monat aus.", Severity.Warning);
         }
+    }
+
+    private void GenerateProjektnachweisReport()
+    {
+        if (dateRange?.Start == null || selectedProjektId == null)
+        {
+            Snackbar.Add("Bitte wählen Sie ein Projekt und einen Zeitraum aus.", Severity.Warning);
+            return;
+        }
+
+        var von = dateRange.Start.Value.ToString("yyyy-MM-dd");
+        var bis = dateRange.End.Value.ToString("yyyy-MM-dd");
+
+        var url = $"/api/reporting/projektnachweis?projektId={selectedProjektId.Value}&vonDatum={von}&bisDatum={bis}";
+        NavigationManager.NavigateTo(url, forceLoad: true);
+    }
+
+    private void GenerateGesamtauswertungReport()
+    {
+        if (gesamtDateRange?.Start == null)
+        {
+            Snackbar.Add("Bitte wählen Sie einen Zeitraum aus.", Severity.Warning);
+            return;
+        }
+
+        var von = gesamtDateRange.Start.Value.ToString("yyyy-MM-dd");
+        var bis = gesamtDateRange.End.Value.ToString("yyyy-MM-dd");
+
+        var url = $"/api/reporting/gesamtauswertung?vonDatum={von}&bisDatum={bis}";
+        NavigationManager.NavigateTo(url, forceLoad: true);
     }
 }

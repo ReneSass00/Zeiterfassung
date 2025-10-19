@@ -17,8 +17,8 @@ public class QuickStartTemplate
 
     [Required]
     [MaxLength(100)]
-    public string Name { get; set; } // Text auf dem Button, z.B. "Team-Meeting"
+    public string Name { get; set; } 
 
     [MaxLength(500)]
-    public string Description { get; set; } // Vorgefüllte Beschreibung
+    public string Description { get; set; } 
 }
