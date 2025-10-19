@@ -8,7 +8,7 @@ namespace Zeiterfassung.Data;
 public static class DataSeeder
 {
     // Die E-Mails, die wir erstellen wollen
-    private static readonly string[] SeederEmails = { "guest@example.com", "alice@example.com", "bob@example.com" };
+    private static readonly string[] SeederEmails = { "guest@example.com", "alice@example.com", "bob@example.com", "charlie@example.com", "dave@example.com" };
 
     public static async Task InitializeAsync(ZeiterfassungContext context, UserManager<User> userManager)
     {
@@ -41,7 +41,21 @@ public static class DataSeeder
             await userManager.CreateAsync(userBob, "Password123!");
         }
 
-        var usersToSeedTime = new[] { guestUser, userAlice, userBob };
+        var userCharlie = existingUsers.FirstOrDefault(u => u.Email == "charlie@example.com");
+        if (userCharlie == null)
+        {
+            userCharlie = new User { UserName = "charlie@example.com", Email = "charlie@example.com", EmailConfirmed = true };
+            await userManager.CreateAsync(userCharlie, "Password123!");
+        }
+
+        var userDave = existingUsers.FirstOrDefault(u => u.Email == "dave@example.com");
+        if (userDave == null)
+        {
+            userDave = new User { UserName = "dave@example.com", Email = "dave@example.com", EmailConfirmed = true };
+            await userManager.CreateAsync(userDave, "Password123!");
+        }
+
+        var usersToSeedTime = new[] { guestUser, userAlice, userBob, userCharlie, userDave };
 
 
         // --- 2. Projekte erstellen (Idempotent) ---
@@ -57,8 +71,8 @@ public static class DataSeeder
                 new Project { Name = "Urlaub", Description = "Bezahlter Jahresurlaub.", OwnerId = guestUser.Id },
                 new Project { Name = "Feiertag", Description = "Gesetzliche Feiertage (z.B. Weihnachten, Ostern).", OwnerId = guestUser.Id },
                 new Project { Name = "Krankheit", Description = "Krankheitsbedingte Abwesenheit.", OwnerId = guestUser.Id },
-                new Project { Name = "Interne Schulung (Weiterbildung)", Description = "Teilnahme an internen/externen Schulungen.", OwnerId = userAlice.Id },
-                new Project { Name = "Support & Wartung", Description = "Regelmäßige Bugfixes und allgemeine Systemwartung.", OwnerId = userBob.Id },
+                new Project { Name = "Interne Schulung (Weiterbildung)", Description = "Teilnahme an internen/externen Schulungen.", OwnerId = userCharlie.Id }, // Owner geändert
+                new Project { Name = "Support & Wartung", Description = "Regelmäßige Bugfixes und allgemeine Systemwartung.", OwnerId = userDave.Id },      // Owner geändert
             };
 
             await context.Projects.AddRangeAsync(projectsToAdd);
@@ -90,16 +104,19 @@ public static class DataSeeder
         await context.SaveChangesAsync();
 
 
-        // --- 3. & 4. Realistische Zeiteinträge generieren oder verschieben ---
 
-        // A. GENERIEREN: Nur wenn noch keine Zeiteinträge existieren
+        // GENERIEREN: Nur wenn noch keine Zeiteinträge existieren
         if (!await context.TimeEntries.AnyAsync())
         {
             await GenerateInitialTimeEntries(context, random, usersToSeedTime, operationalProjects, nonOperationalProjects);
         }
 
-        // B. VERSCHIEBEN: Aktualisiert die Daten des Gast-Users bei jedem Start
+        // VERSCHIEBEN: Aktualisiert die Daten der User bei jedem Start auf aktuelles Datum
         await ShiftGuestTimeEntriesAsync(context, guestUser);
+        await ShiftGuestTimeEntriesAsync(context, userAlice);
+        await ShiftGuestTimeEntriesAsync(context, userBob);
+        await ShiftGuestTimeEntriesAsync(context, userCharlie);
+        await ShiftGuestTimeEntriesAsync(context, userDave);
     }
 
     /// <summary>

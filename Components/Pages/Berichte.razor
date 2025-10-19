@@ -1,0 +1,68 @@
+﻿@page "/reports"
+@using Zeiterfassung.Data
+@using Zeiterfassung.Reports.Data
+@inject ZeiterfassungContext DbContext
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h3" GutterBottom="true">Monatlicher Zeitnachweis</MudText>
+
+<MudPaper Elevation="3" Class="pa-4" MaxWidth="500px">
+    <MudText Typo="Typo.h5" GutterBottom="true">Berichtsparameter auswählen</MudText>
+
+    @* Mitarbeiter-Auswahl mit MudSelect *@
+    <MudSelect T="string" Label="Mitarbeiter" @bind-Value="selectedMitarbeiterId" AnchorOrigin="Origin.BottomCenter">
+        @if (mitarbeiterListe != null)
+        {
+            @foreach (var ma in mitarbeiterListe)
+            {
+                <MudSelectItem T="string" Value="@ma.Id">@ma.UserName</MudSelectItem>
+            }
+        }
+    </MudSelect>
+
+    @* Monatsauswahl mit MudDatePicker *@
+    <MudDatePicker Label="Berichtsmonat"
+                   @bind-PickerMonth="selectedMonat"
+                   PickerVariant="PickerVariant.Dialog"
+                   DateFormat="MMMM yyyy"
+                   OpenTo="OpenTo.Month"
+                   Class="mt-4" FixDay="1"/>
+
+    <MudButton Variant="Variant.Filled"
+               Color="MudBlazor.Color.Primary"
+               OnClick="GenerateReport"
+               Disabled="@(string.IsNullOrEmpty(selectedMitarbeiterId))"
+               FullWidth="true"
+               StartIcon="@Icons.Material.Filled.Article"
+               Class="mt-5">
+        Bericht als PDF erstellen
+    </MudButton>
+</MudPaper>
+
+@code {
+    private List<User>? mitarbeiterListe;
+    private string selectedMitarbeiterId = "";
+    private DateTime? selectedMonat = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        mitarbeiterListe = await DbContext.Users.OrderBy(m => m.NormalizedUserName).ToListAsync();
+    }
+
+    /// <summary>
+    /// Calls API Endpoint of Monatsnachweis Report
+    /// </summary>
+    private void GenerateReport()
+    {
+        if (selectedMonat != null)
+        {
+            var url = $"/api/reporting/monatsnachweis?mitarbeiterId={selectedMitarbeiterId}&jahr={selectedMonat.Value.Year}&monat={selectedMonat.Value.Month}";
+            NavigationManager.NavigateTo(url, forceLoad: true);
+        }
+        else
+        {
+            Snackbar.Add("Bitte wählen Sie einen Monat aus.", Severity.Warning);
+        }
+    }
+}
